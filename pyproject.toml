@@ -1,0 +1,37 @@
+[project]
+name = "zowie-agent-sdk"
+version = "0.3.0"
+description = ""
+authors = [
+    {name = "zowie",email = "support@zowie.ai"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+
+[tool.poetry.dependencies]
+fastapi = "^0.111.0"
+google-genai = "^1.31.0"
+requests = "^2.32.5"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+mypy = "^1.10"
+ruff = "^0.6"
+types-requests = "^2.32.4.20250809"
+
+[tool.poetry]
+packages = [{include = "zowie_agent_sdk", from = "src"}]
+
+[tool.mypy]
+strict = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "B"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
