@@ -1,4 +1,4 @@
-from zowie_agent_sdk import (
+from src.zowie_agent_sdk import (
     start_agent,
     configure_llm,
     Context,

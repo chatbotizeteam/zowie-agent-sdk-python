@@ -168,6 +168,12 @@ class APICallEvent(BaseModel):
 Event = Annotated[Union[LLMCallEvent, APICallEvent], Field(discriminator="type")]
 
 
+class Persona(BaseModel):
+    name: Optional[str]
+    business_context: Optional[str]
+    tone_of_voice: Optional[str]
+
+
 class Content(BaseModel):
     text: str
     role: Literal["model", "user"]
@@ -177,17 +183,25 @@ class GoogleLLMFacade:
     config: Optional[GoogleConfig]
     events: List[Event]
     client: Optional[genai.Client]
+    persona: Optional[Persona]
 
-    def __init__(self, config: Optional[GoogleConfig], events: List[Event]):
+    def __init__(
+        self,
+        config: Optional[GoogleConfig],
+        events: List[Event],
+        persona: Optional[Persona],
+    ):
         self.events = events
         self.config = config
         self.client = None
+        self.persona = persona
 
     def generate_content(
         self,
         model: str,
         contents: List[Content],
         system_instruction: Optional[str] = None,
+        include_persona_in_system_instruction: bool = True,
     ) -> genai.types.GenerateContentResponse:
         if self.config is None:
             raise Exception("LLM requires config.")
@@ -195,28 +209,50 @@ class GoogleLLMFacade:
         if self.client is None:
             self.client = genai.Client(api_key=self.config.apiKey)
 
-        prepared_content = []
+        prepared_contents = []
         for content in contents:
-            prepared_content.append(
+            prepared_contents.append(
                 {"role": content.role, "parts": [{"text": content.text}]}
             )
 
         prepared_config = genai.types.GenerateContentConfig()
 
+        system_instruction_temp = ""
+
+        if self.persona is not None and include_persona_in_system_instruction:
+            system_instruction_temp += "<persona>\n"
+            if self.persona.name:
+                system_instruction_temp += f"""<name>{self.persona.name}</name>.\n\n"""
+            if self.persona.business_context:
+                system_instruction_temp += f"""<business_context>\n{self.persona.business_context}\n</business_context>.\n\n"""
+            if self.persona.tone_of_voice:
+                system_instruction_temp += f"""<tone_of_voice>\n{self.persona.tone_of_voice}\n</tone_of_voice>.\n\n"""
+            system_instruction_temp += "</persona>"
+
         if system_instruction is not None:
-            prepared_config.system_instruction = system_instruction
+            system_instruction_temp += system_instruction
+
+        if system_instruction is not None:
+            prepared_config.system_instruction = system_instruction_temp
 
         start = get_time_ms()
         response = self.client.models.generate_content(
-            model=model, contents=prepared_content, config=prepared_config
+            model=model, contents=prepared_contents, config=prepared_config
         )
         stop = get_time_ms()
+
+        prompt_data = {
+            "system_instruction": system_instruction_temp,
+            "contents": prepared_contents,
+        }
 
         self.events.append(
             LLMCallEvent(
                 payload=LLMCallEventPayload(
                     model=model,
-                    prompt=libJson.dumps(prepared_content),
+                    prompt=libJson.dumps(
+                        prompt_data, indent=2, sort_keys=True, ensure_ascii=False
+                    ),
                     response=response.model_dump_json(),
                     durationInMillis=stop - start,
                 )
@@ -231,6 +267,7 @@ class GoogleLLMFacade:
         contents: List[Content],
         response_json_schema: Any,
         system_instruction: Optional[str] = None,
+        include_persona_in_system_instruction: bool = True,
     ) -> genai.types.GenerateContentResponse:
         if self.config is None:
             raise Exception("LLM requires config.")
@@ -238,9 +275,9 @@ class GoogleLLMFacade:
         if self.client is None:
             self.client = genai.Client(api_key=self.config.apiKey)
 
-        prepared_content = []
+        prepared_contents = []
         for content in contents:
-            prepared_content.append(
+            prepared_contents.append(
                 {"role": content.role, "parts": [{"text": content.text}]}
             )
 
@@ -249,20 +286,43 @@ class GoogleLLMFacade:
             response_mime_type="application/json",
         )
 
+        system_instruction_temp = ""
+
+        if self.persona is not None and include_persona_in_system_instruction:
+            system_instruction_temp += "<persona>\n"
+            if self.persona.name:
+                system_instruction_temp += f"""<name>{self.persona.name}</name>.\n\n"""
+            if self.persona.business_context:
+                system_instruction_temp += f"""<business_context>\n{self.persona.business_context}\n</business_context>.\n\n"""
+            if self.persona.tone_of_voice:
+                system_instruction_temp += f"""<tone_of_voice>\n{self.persona.tone_of_voice}\n</tone_of_voice>.\n\n"""
+            system_instruction_temp += "</persona>"
+
         if system_instruction is not None:
-            prepared_config.system_instruction = system_instruction    
+            system_instruction_temp += system_instruction
+
+        if system_instruction is not None:
+            prepared_config.system_instruction = system_instruction_temp
 
         start = get_time_ms()
         response = self.client.models.generate_content(
-            model=model, contents=prepared_content, config=prepared_config
+            model=model, contents=prepared_contents, config=prepared_config
         )
         stop = get_time_ms()
+
+        prompt_data = {
+            "system_instruction": system_instruction_temp,
+            "response_json_schema": response_json_schema,
+            "contents": prepared_contents,
+        }
 
         self.events.append(
             LLMCallEvent(
                 payload=LLMCallEventPayload(
                     model=model,
-                    prompt=libJson.dumps(prepared_content),
+                    prompt=libJson.dumps(
+                        prompt_data, indent=2, sort_keys=True, ensure_ascii=False
+                    ),
                     response=response.model_dump_json(),
                     durationInMillis=stop - start,
                 )
@@ -275,12 +335,17 @@ class GoogleLLMFacade:
 class LLMFacade:
     google: GoogleLLMFacade
 
-    def __init__(self, config: Optional[LLMConfig], events: List[Event]):
-        self.google = GoogleLLMFacade(config=None, events=events)
-
+    def __init__(
+        self,
+        config: Optional[LLMConfig],
+        events: List[Event],
+        persona: Optional[Persona],
+    ):
         match config:
             case GoogleConfig() as googleConfig:
-                self.google = GoogleLLMFacade(config=googleConfig, events=events)
+                self.google = GoogleLLMFacade(
+                    config=googleConfig, events=events, persona=persona
+                )
 
 
 class Message(BaseModel):
@@ -360,10 +425,22 @@ def start_agent(handler: Callable[[Context], AgentResponse]) -> FastAPI:
         def storeValue(key: str, value: str) -> None:
             valueStorage[key] = value
 
-        llm_facade = LLMFacade(config=llm_provider_config, events=events)
-        http_facade = HTTPFacade(events=events)
-
         input_json = await request.json()
+
+        persona = None
+        if input_json["persona"] is not None:
+            persona = Persona(name=None, business_context=None, tone_of_voice=None)
+            if input_json["persona"]["name"] is not None:
+                persona.name = input_json["persona"]["name"]
+            if input_json["persona"]["businessContext"] is not None:
+                persona.business_context = input_json["persona"]["businessContext"]
+            if input_json["persona"]["toneOfVoice"] is not None:
+                persona.tone_of_voice = input_json["persona"]["toneOfVoice"]
+
+        llm_facade = LLMFacade(
+            config=llm_provider_config, events=events, persona=persona
+        )
+        http_facade = HTTPFacade(events=events)
 
         context = Context(
             messages=input_json["messages"],
@@ -399,7 +476,6 @@ def start_agent(handler: Callable[[Context], AgentResponse]) -> FastAPI:
                     events=events,
                 )
 
-        print(response)
         return response
 
     return app
