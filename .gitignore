@@ -1,2 +1,4 @@
 __pycache__
 dist/
+.claude/
+SPEC.md
