@@ -22,6 +22,7 @@ def get_time_ms() -> int:
     return time.time_ns() // 1_000_000
 
 
+# Global config maintained for backward compatibility only  
 llm_provider_config: Optional[LLMConfig] = None
 
 
@@ -646,6 +647,107 @@ class ExternalAgentResponse(BaseModel):
     events: Optional[List[Event]] = None
 
 
+class Agent(ABC):
+    def __init__(self, llm_config: LLMConfig):
+        self.llm_config = llm_config
+        self.app = FastAPI()
+        self._setup_routes()
+
+    @abstractmethod
+    async def handle(self, context: Context) -> AgentResponse:
+        """Override this method to implement your agent's logic"""
+        pass
+
+    def _setup_routes(self) -> None:
+        @self.app.post("/")
+        async def handle_request(request: Request) -> ExternalAgentResponse:
+            valueStorage: Dict[str, Any] = {}
+            events: List[Event] = []
+
+            def storeValue(key: str, value: Any) -> None:
+                valueStorage[key] = value
+
+            input_json = await request.json()
+
+            # Parse metadata
+            metadata = Metadata(
+                requestId=input_json["metadata"]["requestId"],
+                chatbotId=input_json["metadata"]["chatbotId"],
+                conversationId=input_json["metadata"]["conversationId"],
+                interactionId=input_json["metadata"].get("interactionId"),
+            )
+
+            # Parse persona
+            persona = None
+            if "persona" in input_json and input_json["persona"] is not None:
+                persona = Persona(name=None, business_context=None, tone_of_voice=None)
+                if input_json["persona"].get("name") is not None:
+                    persona.name = input_json["persona"]["name"]
+                if input_json["persona"].get("businessContext") is not None:
+                    persona.business_context = input_json["persona"]["businessContext"]
+                if input_json["persona"].get("toneOfVoice") is not None:
+                    persona.tone_of_voice = input_json["persona"]["toneOfVoice"]
+
+            # Create LLM and HTTP facades
+            llm = LLM(config=self.llm_config, events=events, persona=persona)
+            http_facade = HTTPFacade(events=events)
+
+            # Create context
+            context = Context(
+                metadata=metadata,
+                messages=input_json["messages"],
+                context=input_json.get("context"),
+                store_value=storeValue,
+                llm=llm,
+                http=http_facade,
+            )
+            
+            # Call handler
+            result = await self.handle(context)
+
+            # Build response
+            match result:
+                case AgentResponseContinue(message=message):
+                    response = ExternalAgentResponse(
+                        command=SendMessageCommand(
+                            payload=SendMessagePayload(message=message)
+                        ),
+                        valuesToSave=valueStorage if valueStorage else None,
+                        events=events if events else None,
+                    )
+
+                case AgentResponseFinish(message=message, next_block=next_block):
+                    payload = GoToNextBlockPayload(
+                        nextBlockReferenceKey=next_block,
+                        message=message,
+                    )
+
+                    response = ExternalAgentResponse(
+                        command=GoToNextBlockCommand(payload=payload),
+                        valuesToSave=valueStorage if valueStorage else None,
+                        events=events if events else None,
+                    )
+
+            return response
+
+
+def create_agent(
+    llm_config: LLMConfig, 
+    handler: Callable[[Context], AgentResponse]
+) -> Agent:
+    """Create an agent with a function-based handler for simple use cases"""
+    class FunctionAgent(Agent):
+        def __init__(self, llm_config: LLMConfig, handler_func: Callable[[Context], AgentResponse]):
+            self.handler_func = handler_func
+            super().__init__(llm_config)
+
+        async def handle(self, context: Context) -> AgentResponse:
+            return self.handler_func(context)
+    
+    return FunctionAgent(llm_config, handler)
+
+
+# Deprecated: kept for backward compatibility
 def configure_llm(config: LLMConfig) -> None:
     global llm_provider_config
     llm_provider_config = config

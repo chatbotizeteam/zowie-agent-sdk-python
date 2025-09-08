@@ -1,6 +1,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .core import (
+    Agent,
     AgentResponse,
     AgentResponseContinue,
     AgentResponseFinish,
@@ -11,12 +12,13 @@ from .core import (
     Metadata,
     OpenAIConfig,
     configure_llm,
+    create_agent,
     start_agent,
 )
 
 __all__ = [
-    "start_agent",
-    "configure_llm",
+    "Agent",
+    "create_agent",
     "Context",
     "AgentResponseContinue",
     "AgentResponseFinish",
@@ -26,6 +28,9 @@ __all__ = [
     "Content",
     "LLMResponse",
     "Metadata",
+    # Deprecated but kept for backward compatibility
+    "start_agent",
+    "configure_llm",
     "__version__",
 ]
 
