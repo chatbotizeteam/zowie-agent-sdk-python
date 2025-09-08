@@ -11,6 +11,7 @@ requires-python = ">=3.9"
 [tool.poetry.dependencies]
 fastapi = "^0.111.0"
 google-genai = "^1.31.0"
+openai = "^1.0.0"
 requests = "^2.32.5"
 
 [tool.poetry.group.dev.dependencies]

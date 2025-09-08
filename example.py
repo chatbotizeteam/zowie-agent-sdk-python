@@ -1,73 +1,71 @@
 from src.zowie_agent_sdk import (
-    start_agent,
-    configure_llm,
-    Context,
     AgentResponse,
     AgentResponseContinue,
     AgentResponseFinish,
-    GoogleConfig,
     Content,
+    Context,
+    #    GoogleConfig,
+    OpenAIConfig,
+    configure_llm,
+    start_agent,
 )
 
+# Configure with Google Gemini
+# configure_llm(GoogleConfig(apiKey="your-google-api-key", model="gemini-2.0-flash-001"))
 
-configure_llm(GoogleConfig(apiKey=""))
+# OR configure with OpenAI
+configure_llm(OpenAIConfig(apiKey="your-openai-api-key", model="gpt-4o-mini"))
 
 
 def handler(context: Context) -> AgentResponse:
-    print(context.messages)
+    # Access metadata
+    print(f"Request ID: {context.metadata.requestId}")
+    print(f"Messages: {context.messages}")
 
-    texts = [m["content"] for m in context.messages]
-
+    # Check for stop condition
+    texts = [m.content for m in context.messages]
     if "stop" in "".join(texts):
-        return AgentResponseFinish(command="completed")
+        return AgentResponseFinish(next_block="completed")
 
-    context.storeValue("k1", "v1")
-    context.storeValue("k2", "v2")
+    # Store values (supports any JSON-compatible type)
+    context.store_value("user_data", {"name": "John", "age": 30})
+    context.store_value("priority", 5)
 
-    api_response1 = context.http.post(
-        url="https://customizations.chatbotize.com/ecommerce/users",
-        json={"email": "maciej@ciolek.me"},
-        headers={"X-Api-Key": "e35f4459059b45deb05890d297750828"},
+    # Make HTTP requests if needed
+    # api_response = context.http.post(
+    #     url="https://api.example.com/endpoint",
+    #     json={"key": "value"},
+    #     headers={"X-Api-Key": "your-api-key"},
+    # )
+
+    # Use LLM with unified interface - no model parameter needed!
+    llm_response = context.llm.generate_content(
+        contents=[Content(role="user", text="How are you?")]
     )
-    print(api_response1)
+    print(f"LLM response: {llm_response.text}")
 
-    llm_response1 = context.llm.google.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=[Content(role="user", text="How are you?")],
-    )
-
-    print(llm_response1)
-
-    api_response2 = context.http.get(
-        url="https://customizations.chatbotize.com/ecommerce/users",
-        headers={"X-Api-Key": "e35f4459059b45deb05890d297750828"},
-    )
-    print(api_response2)
-
-    llm_response2 = context.llm.google.generate_content_with_structured_response(
-        model="gemini-2.0-flash-001",
-        contents=[Content(role="user", text="How are you?")],
-        response_json_schema={
+    # Structured response with schema
+    llm_structured = context.llm.generate_structured_content(
+        contents=[Content(role="user", text="How are you? Please respond with JSON.")],
+        schema={
             "type": "object",
             "properties": {
                 "followupQuestion": {
                     "type": "string",
-                    "description": "a follow up question to ask user to achieve defined goal",
+                    "description": "a follow up question to ask user",
                 },
                 "goalAchieved": {
                     "type": "boolean",
-                    "description": "a follow up question to ask user to achieve defined goal",
+                    "description": "whether the conversation goal is achieved",
                 },
             },
             "required": ["followupQuestion", "goalAchieved"],
         },
     )
+    print(f"Structured response: {llm_structured.text}")
 
-    print(llm_response2)
-
-    return AgentResponseContinue(
-        messages=[llm_response2.candidates[0].content.parts[0].text]
-    )
+    # Return response - now with single message field
+    return AgentResponseContinue(message=llm_response.text)
 
 
 agent = start_agent(handler=handler)
