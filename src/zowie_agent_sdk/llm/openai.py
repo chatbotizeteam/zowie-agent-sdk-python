@@ -6,10 +6,10 @@ from typing import Any, List, Optional
 import openai
 from openai._types import NOT_GIVEN
 from openai.types.responses import ResponseInputItemParam
-from openai.types.responses.response_text_config_param import ResponseTextConfigParam
 from openai.types.responses.response_format_text_json_schema_config_param import (
     ResponseFormatTextJSONSchemaConfigParam,
 )
+from openai.types.responses.response_text_config_param import ResponseTextConfigParam
 
 from ..types import (
     Content,

@@ -1,4 +1,5 @@
 import os
+
 from src.zowie_agent_sdk import (
     Agent,
     AgentResponse,
@@ -6,7 +7,6 @@ from src.zowie_agent_sdk import (
     AgentResponseFinish,
     Content,
     Context,
-    OpenAIConfig,
 )
 from zowie_agent_sdk.types import GoogleConfig
 
