@@ -19,6 +19,8 @@ openai = "^1.107.0"
 pytest = "^8.0"
 mypy = "^1.10"
 ruff = "^0.6"
+pytest-cov = "^7.0.0"
+httpx = "^0.28.1"
 
 [tool.poetry]
 packages = [{include = "zowie_agent_sdk", from = "src"}]
