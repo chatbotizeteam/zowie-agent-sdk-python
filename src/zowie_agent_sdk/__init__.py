@@ -1,24 +1,21 @@
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 
-from .core import (
-    Agent,
+from .agent import Agent
+from .context import Context
+from .types import (
     AgentResponse,
     AgentResponseContinue,
     AgentResponseFinish,
     Content,
-    Context,
     GoogleConfig,
     LLMResponse,
     Metadata,
     OpenAIConfig,
-    configure_llm,
-    create_agent,
-    start_agent,
 )
 
-__all__ = [
+__all__ = (
     "Agent",
-    "create_agent",
     "Context",
     "AgentResponseContinue",
     "AgentResponseFinish",
@@ -28,13 +25,11 @@ __all__ = [
     "Content",
     "LLMResponse",
     "Metadata",
-    # Deprecated but kept for backward compatibility
-    "start_agent",
-    "configure_llm",
     "__version__",
-]
+)
 
+_DIST_NAME = "zowie-agent-sdk"
 try:
-    __version__ = version("zowie-agent-sdk")
-except PackageNotFoundError:  # during local dev / editable installs
-    __version__ = "0.0.0"
+    __version__ = _version(_DIST_NAME)
+except PackageNotFoundError:
+    __version__ = "0.0.0+dev"
