@@ -1,23 +1,23 @@
 import os
 
-from src.zowie_agent_sdk import (
+from zowie_agent_sdk import (
     Agent,
     AgentResponse,
     AgentResponseContinue,
     AgentResponseFinish,
     Content,
     Context,
+    GoogleConfig,
 )
-from zowie_agent_sdk.types import GoogleConfig
 
 
 class MyAgent(Agent):
-    def __init__(self):
-        super().__init__(
-            llm_config=GoogleConfig(
-                api_key=os.environ.get("GOOGLE_API_KEY") or "", model="gemini-2.0-flash"
-            )
-        )
+    def __init__(self) -> None:
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY is not set")
+
+        super().__init__(llm_config=GoogleConfig(api_key=api_key, model="gemini-2.0-flash"))
 
     def handle(self, context: Context) -> AgentResponse:
         # Access metadata
@@ -27,6 +27,7 @@ class MyAgent(Agent):
         # Check for stop condition
         texts = [m.content for m in context.messages]
         if "stop" in "".join(texts):
+            print("Stop condition met")
             return AgentResponseFinish(next_block="completed")
 
         # Store values (supports any JSON-compatible type)
@@ -41,11 +42,11 @@ class MyAgent(Agent):
 
         # Structured response with schema
         llm_structured = context.llm.generate_structured_content(
-            contents=[Content(role="user", text="How are you? Please respond with JSON.")],
+            contents=[Content(role="user", text="How Old are you? Please respond with JSON.")],
             schema={
                 "type": "object",
                 "properties": {
-                    "followupQuestion": {
+                    "age": {
                         "type": "string",
                         "description": "a follow up question to ask user",
                     },
@@ -54,7 +55,7 @@ class MyAgent(Agent):
                         "description": "whether the conversation goal is achieved",
                     },
                 },
-                "required": ["followupQuestion", "goalAchieved"],
+                "required": ["age", "goalAchieved"],
             },
         )
         print(f"Structured response: {llm_structured.text}")

@@ -3,8 +3,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 
+from .auth import AuthValidator
 from .context import Context
 from .http import HTTPClient
 from .llm import LLM
@@ -12,6 +13,7 @@ from .types import (
     AgentResponse,
     AgentResponseContinue,
     AgentResponseFinish,
+    AuthConfig,
     Event,
     ExternalAgentResponse,
     GoToNextBlockCommand,
@@ -25,9 +27,15 @@ from .types import (
 
 
 class Agent(ABC):
-    def __init__(self, llm_config: LLMConfig, http_timeout_seconds: Optional[float] = None):
+    def __init__(
+        self,
+        llm_config: LLMConfig,
+        http_timeout_seconds: Optional[float] = None,
+        auth_config: Optional[AuthConfig] = None,
+    ):
         self.llm_config = llm_config
         self.http_timeout_seconds = http_timeout_seconds
+        self.auth_validator = AuthValidator(auth_config)
         self.app = FastAPI()
         self._setup_routes()
 
@@ -37,8 +45,13 @@ class Agent(ABC):
         pass
 
     def _setup_routes(self) -> None:
+        def auth_dependency(request: Request) -> None:
+            return self.auth_validator(request)
+        
         @self.app.post("/")
-        def handle_request(input_json: Dict[str, Any]) -> ExternalAgentResponse:
+        def handle_request(
+            input_json: Dict[str, Any], _: None = Depends(auth_dependency)
+        ) -> ExternalAgentResponse:
             valueStorage: Dict[str, Any] = {}
             events: List[Event] = []
 

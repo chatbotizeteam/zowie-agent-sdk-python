@@ -36,6 +36,26 @@ class GoogleConfig(BaseModel):
 LLMConfig = Annotated[Union[OpenAIConfig, GoogleConfig], Field(discriminator="provider")]
 
 
+class APIKeyAuth(BaseModel):
+    type: Literal["api_key"] = "api_key"
+    header_name: str
+    api_key: str
+
+
+class BasicAuth(BaseModel):
+    type: Literal["basic"] = "basic"
+    username: str
+    password: str
+
+
+class BearerTokenAuth(BaseModel):
+    type: Literal["bearer"] = "bearer"
+    token: str
+
+
+AuthConfig = Annotated[Union[APIKeyAuth, BasicAuth, BearerTokenAuth], Field(discriminator="type")]
+
+
 class LLMCallEventPayload(BaseModel):
     prompt: str
     response: str

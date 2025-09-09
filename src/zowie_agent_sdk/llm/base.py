@@ -69,6 +69,11 @@ class LLM:
         from .google import GoogleProvider
         from .openai import OpenAIProvider
 
+        # Use provider attribute for reliable type checking to avoid module path issues
+        # if hasattr(config, 'provider') and config.provider == 'google':
+        #     self.provider = GoogleProvider(config=config, events=events, persona=persona)
+        # elif hasattr(config, 'provider') and config.provider == 'openai':
+        #     self.provider = OpenAIProvider(config=config, events=events, persona=persona)
         if isinstance(config, GoogleConfig):
             self.provider = GoogleProvider(config=config, events=events, persona=persona)
         elif isinstance(config, OpenAIConfig):
