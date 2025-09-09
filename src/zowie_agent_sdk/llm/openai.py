@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional, cast
 
 import openai
 from openai._types import NOT_GIVEN
 from openai.types.responses import ResponseInputItemParam
+from openai.types.responses.easy_input_message_param import EasyInputMessageParam
 from openai.types.responses.response_format_text_json_schema_config_param import (
     ResponseFormatTextJSONSchemaConfigParam,
 )
@@ -46,15 +47,10 @@ class OpenAIProvider(BaseLLMProvider):
         input_messages: List[ResponseInputItemParam] = []
         for content in contents:
             role = "assistant" if content.role == "model" else "user"
-            message: ResponseInputItemParam = {
+            message: EasyInputMessageParam = {
                 "type": "message",
-                "role": role,
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": content.text,
-                    }
-                ],
+                "role": cast("Literal['user', 'assistant', 'system', 'developer']", role),
+                "content": content.text,
             }
             input_messages.append(message)
 
@@ -104,15 +100,10 @@ class OpenAIProvider(BaseLLMProvider):
         input_messages: List[ResponseInputItemParam] = []
         for content in contents:
             role = "assistant" if content.role == "model" else "user"
-            message: ResponseInputItemParam = {
+            message: EasyInputMessageParam = {
                 "type": "message",
-                "role": role,  # type: ignore[typeddict-item]
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": content.text,
-                    }
-                ],
+                "role": cast("Literal['user', 'assistant', 'system', 'developer']", role),
+                "content": content.text,
             }
             input_messages.append(message)
 
