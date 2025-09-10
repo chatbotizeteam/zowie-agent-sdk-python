@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Type, Union
 
 from google import genai
+from pydantic import BaseModel
 
 from ..types import (
     Content,
@@ -28,21 +29,30 @@ class GoogleProvider(BaseLLMProvider):
         super().__init__(config, events, persona)
         self.client: genai.Client = genai.Client(api_key=self.api_key)
 
-    def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None, **kwargs: Any
-    ) -> LLMResponse:
-        prepared_contents = []
+    def _prepare_contents(self, contents: List[Content]) -> List[genai.types.ContentDict]:
+        prepared_contents: List[genai.types.ContentDict] = []
         for content in contents:
-            prepared_contents.append({"role": content.role, "parts": [{"text": content.text}]})
+            prepared_contents.append({
+                "role": content.role, 
+                "parts": [{"text": content.text}]
+            })
+        return prepared_contents
+
+    def _build_system_instruction(self, system_instruction: Optional[str] = None) -> str:
+        instructions_str = self._build_persona_instruction()
+        if system_instruction:
+            instructions_str += system_instruction
+        return instructions_str
+
+    def generate_content(
+        self, contents: List[Content], system_instruction: Optional[str] = None
+    ) -> LLMResponse:
+        prepared_contents = self._prepare_contents(contents)
+        instructions_str = self._build_system_instruction(system_instruction)
 
         prepared_config = genai.types.GenerateContentConfig()
-
-        system_instruction_temp = self._build_persona_instruction()
-        if system_instruction:
-            system_instruction_temp += system_instruction
-
-        if system_instruction_temp:
-            prepared_config.system_instruction = system_instruction_temp
+        if instructions_str:
+            prepared_config.system_instruction = instructions_str
 
         start = get_time_ms()
         response = self.client.models.generate_content(
@@ -51,7 +61,7 @@ class GoogleProvider(BaseLLMProvider):
         stop = get_time_ms()
 
         prompt_data = {
-            "system_instruction": system_instruction_temp,
+            "system_instruction": instructions_str,
             "contents": prepared_contents,
         }
 
@@ -79,28 +89,37 @@ class GoogleProvider(BaseLLMProvider):
             model=self.model,
         )
 
+    def _parse_schema(self, schema: Union[str, Type[BaseModel]]) -> Dict[str, Any]:
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            json_schema: Dict[str, Any] = schema.model_json_schema()
+            return json_schema
+        elif isinstance(schema, str):
+            try:
+                parsed_schema: Dict[str, Any] = libJson.loads(schema)
+                return parsed_schema
+            except libJson.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON schema string: {e}") from e
+        else:
+            raise ValueError(
+                f"Schema must be a Pydantic model class or JSON string. Got: {type(schema)}"
+            )
+
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Any,
+        schema: Union[str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
-        **kwargs: Any,
     ) -> LLMResponse:
-        prepared_contents = []
-        for content in contents:
-            prepared_contents.append({"role": content.role, "parts": [{"text": content.text}]})
+        prepared_contents = self._prepare_contents(contents)
+        json_schema = self._parse_schema(schema)
+        instructions_str = self._build_system_instruction(system_instruction)
 
         prepared_config = genai.types.GenerateContentConfig(
-            response_json_schema=schema,
+            response_json_schema=json_schema,
             response_mime_type="application/json",
         )
-
-        system_instruction_temp = self._build_persona_instruction()
-        if system_instruction:
-            system_instruction_temp += system_instruction
-
-        if system_instruction_temp:
-            prepared_config.system_instruction = system_instruction_temp
+        if instructions_str:
+            prepared_config.system_instruction = instructions_str
 
         start = get_time_ms()
         response = self.client.models.generate_content(
@@ -109,8 +128,8 @@ class GoogleProvider(BaseLLMProvider):
         stop = get_time_ms()
 
         prompt_data = {
-            "system_instruction": system_instruction_temp,
-            "response_json_schema": schema,
+            "system_instruction": instructions_str,
+            "response_json_schema": json_schema,
             "contents": prepared_contents,
         }
 

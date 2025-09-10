@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Type, Union
+
+from pydantic import BaseModel
 
 from ..types import Content, Event, GoogleConfig, LLMConfig, LLMResponse, OpenAIConfig, Persona
 
@@ -21,7 +23,7 @@ class BaseLLMProvider(ABC):
 
     @abstractmethod
     def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None, **kwargs: Any
+        self, contents: List[Content], system_instruction: Optional[str] = None
     ) -> LLMResponse:
         pass
 
@@ -29,9 +31,8 @@ class BaseLLMProvider(ABC):
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Any,
+        schema: Union[str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
-        **kwargs: Any,
     ) -> LLMResponse:
         pass
 
@@ -69,32 +70,24 @@ class LLM:
         from .google import GoogleProvider
         from .openai import OpenAIProvider
 
-        # Use provider attribute for reliable type checking to avoid module path issues
-        # if hasattr(config, 'provider') and config.provider == 'google':
-        #     self.provider = GoogleProvider(config=config, events=events, persona=persona)
-        # elif hasattr(config, 'provider') and config.provider == 'openai':
-        #     self.provider = OpenAIProvider(config=config, events=events, persona=persona)
         if isinstance(config, GoogleConfig):
             self.provider = GoogleProvider(config=config, events=events, persona=persona)
         elif isinstance(config, OpenAIConfig):
             self.provider = OpenAIProvider(config=config, events=events, persona=persona)
 
     def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None, **kwargs: Any
+        self, contents: List[Content], system_instruction: Optional[str] = None
     ) -> LLMResponse:
         if self.provider is None:
             raise Exception("LLM provider not configured")
-        return self.provider.generate_content(contents, system_instruction, **kwargs)
+        return self.provider.generate_content(contents, system_instruction)
 
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Any,
+        schema: Union[str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
-        **kwargs: Any,
     ) -> LLMResponse:
         if self.provider is None:
             raise Exception("LLM provider not configured")
-        return self.provider.generate_structured_content(
-            contents, schema, system_instruction, **kwargs
-        )
+        return self.provider.generate_structured_content(contents, schema, system_instruction)

@@ -89,8 +89,8 @@ Event = Annotated[Union[LLMCallEvent, APICallEvent], Field(discriminator="type")
 
 class Persona(BaseModel):
     name: Optional[str]
-    business_context: Optional[str]
-    tone_of_voice: Optional[str]
+    businessContext: Optional[str]
+    toneOfVoice: Optional[str]
 
 
 class Content(BaseModel):

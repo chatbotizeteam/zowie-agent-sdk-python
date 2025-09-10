@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import Any, List, Literal, Optional, cast
+from typing import List, Literal, Optional, Type, Union, cast
 
 import openai
 from openai._types import NOT_GIVEN
@@ -11,6 +11,7 @@ from openai.types.responses.response_format_text_json_schema_config_param import
     ResponseFormatTextJSONSchemaConfigParam,
 )
 from openai.types.responses.response_text_config_param import ResponseTextConfigParam
+from pydantic import BaseModel
 
 from ..types import (
     Content,
@@ -36,14 +37,12 @@ class OpenAIProvider(BaseLLMProvider):
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
 
     def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None, **kwargs: Any
+        self, contents: List[Content], system_instruction: Optional[str] = None
     ) -> LLMResponse:
-        # Build instructions from persona + optional system instruction
         instructions_str = self._build_persona_instruction()
         if system_instruction:
             instructions_str += system_instruction
 
-        # Build Responses API input messages (typed)
         input_messages: List[ResponseInputItemParam] = []
         for content in contents:
             role = "assistant" if content.role == "model" else "user"
@@ -87,16 +86,13 @@ class OpenAIProvider(BaseLLMProvider):
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Any,
+        schema: Union[str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
-        **kwargs: Any,
     ) -> LLMResponse:
-        # Build instructions from persona + optional system instruction
         instructions_str = self._build_persona_instruction()
         if system_instruction:
             instructions_str += system_instruction
 
-        # Build Responses API input messages (typed)
         input_messages: List[ResponseInputItemParam] = []
         for content in contents:
             role = "assistant" if content.role == "model" else "user"
@@ -107,11 +103,25 @@ class OpenAIProvider(BaseLLMProvider):
             }
             input_messages.append(message)
 
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            json_schema = schema.model_json_schema()
+            schema_name = schema.__name__
+        elif isinstance(schema, str):
+            try:
+                json_schema = libJson.loads(schema)
+            except libJson.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON schema string: {e}") from e
+            schema_name = json_schema.get("title", "structured_output")
+        else:
+            raise ValueError(
+                f"Schema must be a Pydantic model class or JSON string. Got: {type(schema)}"
+            )
+
         response_format_cfg: ResponseTextConfigParam = {
             "format": ResponseFormatTextJSONSchemaConfigParam(
-                name="structured_output",
+                name=schema_name,
                 type="json_schema",
-                schema=schema,
+                schema=json_schema,
                 strict=True,
             )
         }
@@ -127,7 +137,7 @@ class OpenAIProvider(BaseLLMProvider):
 
         prompt_data = {
             "instructions": instructions_str,
-            "response_json_schema": schema,
+            "response_json_schema": json_schema,
             "input": input_messages,
         }
 
