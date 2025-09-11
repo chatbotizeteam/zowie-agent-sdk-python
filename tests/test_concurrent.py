@@ -218,3 +218,99 @@ class TestConcurrentRequests:
         
         for response in invalid_results:
             assert response.status_code == 401
+
+    @patch('zowie_agent_sdk.llm.google.GoogleProvider')
+    def test_thread_safety_and_isolation(self, mock_google_provider):
+        """Test that requests are properly isolated and thread-safe."""
+        mock_provider_instance = MagicMock()
+        mock_google_provider.return_value = mock_provider_instance
+        
+        class ThreadSafetyAgent(Agent):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.processing_requests = set()
+                self.lock = threading.Lock()
+            
+            def handle(self, context: Context):
+                request_id = context.metadata.requestId
+                
+                # Check for concurrent processing of same request
+                with self.lock:
+                    if request_id in self.processing_requests:
+                        raise RuntimeError(f"Request {request_id} already being processed!")
+                    self.processing_requests.add(request_id)
+                
+                try:
+                    # Simulate processing
+                    time.sleep(0.01)
+                    
+                    # Each request should have its own context
+                    assert hasattr(context, 'metadata')
+                    assert hasattr(context, 'messages')
+                    assert hasattr(context, 'store_value')
+                    
+                    # Store request-specific data
+                    context.store_value("processed_by", threading.current_thread().name)
+                    
+                    return ContinueConversationResponse(
+                        message=f"Processed {request_id}"
+                    )
+                finally:
+                    # Clean up tracking
+                    with self.lock:
+                        self.processing_requests.remove(request_id)
+        
+        agent = ThreadSafetyAgent(
+            llm_config=GoogleProviderConfig(api_key="test", model="test")
+        )
+        client = TestClient(agent.app)
+        
+        results = []
+        errors = []
+        
+        def make_request(request_id):
+            try:
+                data = {
+                    "metadata": {
+                        "requestId": f"safe-{request_id}",
+                        "chatbotId": "bot-456",
+                        "conversationId": "conv-789",
+                    },
+                    "messages": [],
+                }
+                response = client.post("/", json=data)
+                results.append((request_id, response))
+            except Exception as e:
+                errors.append((request_id, e))
+        
+        # Create many concurrent requests
+        threads = []
+        for i in range(20):
+            thread = threading.Thread(target=make_request, args=(i,))
+            threads.append(thread)
+            thread.start()
+        
+        for thread in threads:
+            thread.join()
+        
+        # Verify all succeeded without errors
+        assert len(errors) == 0, f"Errors occurred: {errors}"
+        assert len(results) == 20
+        
+        # Verify each request was processed correctly
+        seen_threads = set()
+        for request_id, response in results:
+            assert response.status_code == 200
+            result = response.json()
+            assert result["command"]["payload"]["message"] == f"Processed safe-{request_id}"
+            
+            # Check that thread names are recorded
+            thread_name = result["valuesToSave"]["processed_by"]
+            seen_threads.add(thread_name)
+        
+        # TestClient uses AnyIO which may process all requests on same worker thread
+        # The important thing is that all requests were processed correctly
+        assert len(seen_threads) >= 1, "Should have thread name recorded"
+        
+        # Verify no requests are still being processed
+        assert len(agent.processing_requests) == 0

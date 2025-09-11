@@ -54,6 +54,16 @@ class TestOpenAIStructuredOutput:
             assert text_config['format']['name'] == 'SampleModel'
             assert 'schema' in text_config['format']
             
+            # Verify the schema was correctly transformed from Pydantic model
+            schema = text_config['format']['schema']
+            assert schema['type'] == 'object'
+            assert 'properties' in schema
+            assert 'name' in schema['properties']
+            assert 'age' in schema['properties']
+            assert schema['properties']['name']['type'] == 'string'
+            assert schema['properties']['age']['type'] == 'integer'
+            assert set(schema['required']) == {'name', 'age'}
+            
             # Verify response
             assert isinstance(result, LLMResponse)
             assert result.text == '{"name": "Test", "age": 25}'
@@ -97,6 +107,12 @@ class TestOpenAIStructuredOutput:
             assert text_config['format']['type'] == 'json_schema'
             assert text_config['format']['name'] == 'Person'
             assert text_config['format']['schema']['type'] == 'object'
+            
+            # Verify the JSON string was correctly parsed
+            parsed_schema = text_config['format']['schema']
+            assert parsed_schema['properties']['name']['type'] == 'string'
+            assert parsed_schema['properties']['age']['type'] == 'integer'
+            assert parsed_schema['required'] == ['name', 'age']
             
             # Verify response
             assert isinstance(result, LLMResponse)
@@ -149,6 +165,13 @@ class TestOpenAIStructuredOutput:
             # Verify the schema was passed correctly
             call_args = mock_client.responses.create.call_args
             assert call_args.kwargs['text']['format']['schema'] == dict_schema
+            
+            # Verify all required parameters were passed
+            assert 'model' in call_args.kwargs
+            assert call_args.kwargs['model'] == 'gpt-4'
+            assert 'input' in call_args.kwargs
+            assert len(call_args.kwargs['input']) == 1
+            assert call_args.kwargs['input'][0]['content'] == 'Test'
 
 
 class TestGoogleStructuredOutput:
@@ -185,6 +208,13 @@ class TestGoogleStructuredOutput:
             # The schema should be the Pydantic model's JSON schema
             assert config_arg.response_json_schema['type'] == 'object'
             assert 'name' in config_arg.response_json_schema['properties']
+            assert 'age' in config_arg.response_json_schema['properties']
+            assert config_arg.response_json_schema['properties']['name']['type'] == 'string'
+            assert config_arg.response_json_schema['properties']['age']['type'] == 'integer'
+            assert set(config_arg.response_json_schema['required']) == {'name', 'age'}
+            
+            # Verify the model name was used
+            assert mock_client.models.generate_content.call_args.kwargs['model'] == 'gemini-pro'
             
             # Verify response
             assert isinstance(result, LLMResponse)
@@ -284,6 +314,16 @@ class TestGoogleStructuredOutput:
             # Verify the schema was passed correctly
             call_args = mock_client.models.generate_content.call_args
             assert call_args.kwargs['config'].response_json_schema == dict_schema
+            
+            # Verify all configuration was set correctly
+            assert call_args.kwargs['config'].response_mime_type == 'application/json'
+            assert call_args.kwargs['model'] == 'gemini-pro'
+            assert 'contents' in call_args.kwargs
+            # Verify content transformation
+            contents = call_args.kwargs['contents']
+            assert len(contents) == 1
+            assert contents[0]['role'] == 'user'
+            assert contents[0]['parts'][0]['text'] == 'Test'
 
 
 class TestLLMWrapperStructuredOutput:

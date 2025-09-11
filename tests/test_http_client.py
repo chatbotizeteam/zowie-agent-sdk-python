@@ -54,13 +54,21 @@ class TestHTTPClient:
             timeout=10.0
         )
         
-        # Check event was recorded
+        # Check event was recorded with complete details
         assert len(events) == 1
         event = events[0]
         assert isinstance(event, APICallEvent)
         assert event.payload.url == "https://api.example.com/test"
         assert event.payload.requestMethod == "GET"
         assert event.payload.responseStatusCode == 200
+        
+        # Verify complete event payload
+        assert event.payload.requestHeaders == {"Authorization": "Bearer token"}
+        assert event.payload.requestBody is None  # GET request has no body
+        assert event.payload.responseHeaders == {"Content-Type": "application/json"}
+        assert event.payload.responseBody == '{"result": "success"}'
+        assert event.payload.durationInMillis >= 0  # May be 0 when mocked
+        assert event.type == "api_call"
 
     @patch('requests.request')
     def test_post_request(self, mock_request):
@@ -90,11 +98,20 @@ class TestHTTPClient:
             timeout=10.0
         )
         
-        # Check event was recorded
+        # Check event was recorded with complete POST details
         assert len(events) == 1
         event = events[0]
+        assert isinstance(event, APICallEvent)
         assert event.payload.requestMethod == "POST"
         assert event.payload.requestBody == json.dumps(request_data)
+        
+        # Verify complete POST event payload
+        assert event.payload.url == "https://api.example.com/create"
+        assert event.payload.requestHeaders == {"Content-Type": "application/json"}
+        assert event.payload.responseStatusCode == 201
+        assert event.payload.responseBody == '{"id": 123}'
+        assert event.payload.responseHeaders == {"Content-Type": "application/json"}
+        assert event.payload.durationInMillis >= 0  # May be 0 when mocked
 
     @patch('requests.request')
     def test_put_request(self, mock_request):
@@ -123,6 +140,17 @@ class TestHTTPClient:
             json=update_data,
             timeout=10.0
         )
+        
+        # Check event with complete PUT details
+        assert len(events) == 1
+        event = events[0]
+        assert isinstance(event, APICallEvent)
+        assert event.payload.requestMethod == "PUT"
+        assert event.payload.url == "https://api.example.com/update/123"
+        assert event.payload.responseStatusCode == 200
+        assert event.payload.responseBody == '{"updated": true}'
+        assert event.payload.requestBody == json.dumps(update_data)
+        assert event.payload.durationInMillis >= 0  # May be 0 when mocked
 
     @patch('requests.request')
     def test_delete_request(self, mock_request):
@@ -149,6 +177,18 @@ class TestHTTPClient:
             json=None,
             timeout=10.0
         )
+        
+        # Check event with complete DELETE details
+        assert len(events) == 1
+        event = events[0]
+        assert isinstance(event, APICallEvent)
+        assert event.payload.requestMethod == "DELETE"
+        assert event.payload.responseStatusCode == 204
+        assert event.payload.url == "https://api.example.com/delete/123"
+        assert event.payload.requestBody is None  # DELETE typically has no body
+        assert event.payload.responseBody == ''  # 204 has no content
+        assert event.payload.requestHeaders == {"Authorization": "Bearer token"}
+        assert event.payload.durationInMillis >= 0  # May be 0 when mocked
 
     @patch('requests.request')
     def test_custom_timeout(self, mock_request):

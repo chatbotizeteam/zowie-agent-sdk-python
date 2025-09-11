@@ -117,10 +117,6 @@ class OpenAIProvider(BaseLLMProvider):
             except libJson.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSON schema string: {e}") from e
             schema_name = json_schema.get("title", "structured_output")
-        else:
-            raise ValueError(
-                f"Schema must be a Pydantic model class, dict, or JSON string. Got: {type(schema)}"
-            )
 
         response_format_cfg: ResponseTextConfigParam = {
             "format": ResponseFormatTextJSONSchemaConfigParam(

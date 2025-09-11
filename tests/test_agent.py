@@ -74,6 +74,20 @@ class TestAgentClass:
         assert response.status_code == 200
         result = response.json()
         
+        # Verify LLM was initialized with correct config
+        mock_llm.assert_called_once()
+        call_args = mock_llm.call_args
+        assert call_args.kwargs['config'] == google_config
+        assert 'events' in call_args.kwargs
+        # Sample request includes persona
+        assert call_args.kwargs['persona'] is not None
+        assert call_args.kwargs['persona'].name == "Test Assistant"
+        
+        # Verify HTTPClient was initialized
+        mock_http.assert_called_once()
+        http_call_args = mock_http.call_args
+        assert 'events' in http_call_args.kwargs
+        
         assert result["command"]["type"] == "send_message"
         assert result["command"]["payload"]["message"] == "Test response"
 
@@ -87,6 +101,8 @@ class TestAgentClass:
         # Mock LLM to avoid actual API calls
         mock_llm_instance = MagicMock()
         mock_llm.return_value = mock_llm_instance
+        mock_http_instance = MagicMock()
+        mock_http.return_value = mock_http_instance
         
         request_json = {
             "metadata": {
@@ -119,6 +135,13 @@ class TestAgentClass:
         
         class StorageTestAgent(Agent):
             def handle(self, context: Context):
+                # Verify context has expected properties
+                assert hasattr(context, 'store_value')
+                assert hasattr(context, 'llm')
+                assert hasattr(context, 'http')
+                assert context.llm == mock_llm.return_value
+                assert context.http == mock_http.return_value
+                
                 context.store_value("test_key", "test_value")
                 context.store_value("test_number", 42)
                 return ContinueConversationResponse(message="Stored values")
@@ -129,6 +152,8 @@ class TestAgentClass:
         # Mock LLM to avoid actual API calls
         mock_llm_instance = MagicMock()
         mock_llm.return_value = mock_llm_instance
+        mock_http_instance = MagicMock()
+        mock_http.return_value = mock_http_instance
         
         request_json = {
             "metadata": {
