@@ -98,7 +98,7 @@ class OpenAIProvider(BaseLLMProvider):
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Union[Dict[str, Any], str, Type[BaseModel]],
+        schema: Union[Dict[str, Any], Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
         messages = self._prepare_contents(contents)
@@ -162,11 +162,11 @@ class OpenAIProvider(BaseLLMProvider):
     def _generate_with_json_schema(
         self, 
         messages: List[ChatCompletionMessageParam], 
-        schema: Union[Dict[str, Any], str]
+        schema: Dict[str, Any]
     ) -> LLMResponse:
-        """Generate structured content using JSON schema for dict/string inputs."""
+        """Generate structured content using JSON schema for dict inputs."""
         json_schema = self._parse_schema(schema)
-        schema_name = json_schema.get("title", "structured_output")
+        schema_name = json_schema.get("title", "response_schema")
 
         start = get_time_ms()
         response = self.client.chat.completions.create(

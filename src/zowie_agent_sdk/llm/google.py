@@ -86,7 +86,7 @@ class GoogleProvider(BaseLLMProvider):
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Union[Dict[str, Any], str, Type[BaseModel]],
+        schema: Union[Dict[str, Any], Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
         prepared_contents = self._prepare_contents(contents)
