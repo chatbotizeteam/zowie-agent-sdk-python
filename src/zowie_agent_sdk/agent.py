@@ -7,18 +7,20 @@ from fastapi import Depends, FastAPI, Request
 
 from .auth import AuthValidator
 from .context import Context
+from .domain import (
+    AgentResponse,
+    AuthConfig,
+    ContinueConversationResponse,
+    LLMConfig,
+    TransferToBlockResponse,
+)
 from .http import HTTPClient
 from .llm import LLM
-from .types import (
-    AgentResponse,
-    AgentResponseContinue,
-    AgentResponseFinish,
-    AuthConfig,
+from .protocol import (
     Event,
     ExternalAgentResponse,
     GoToNextBlockCommand,
     GoToNextBlockPayload,
-    LLMConfig,
     Metadata,
     Persona,
     SendMessageCommand,
@@ -47,7 +49,7 @@ class Agent(ABC):
     def _setup_routes(self) -> None:
         def auth_dependency(request: Request) -> None:
             return self.auth_validator(request)
-        
+
         @self.app.post("/")
         def handle_request(
             input_json: Dict[str, Any], _: None = Depends(auth_dependency)
@@ -67,13 +69,8 @@ class Agent(ABC):
 
             persona = None
             if "persona" in input_json and input_json["persona"] is not None:
-                persona = Persona(name=None, business_context=None, tone_of_voice=None)
-                if input_json["persona"].get("name") is not None:
-                    persona.name = input_json["persona"]["name"]
-                if input_json["persona"].get("businessContext") is not None:
-                    persona.business_context = input_json["persona"]["businessContext"]
-                if input_json["persona"].get("toneOfVoice") is not None:
-                    persona.tone_of_voice = input_json["persona"]["toneOfVoice"]
+                # Pydantic will automatically handle camelCase -> snake_case conversion
+                persona = Persona(**input_json["persona"])
 
             llm = LLM(config=self.llm_config, events=events, persona=persona)
             if self.http_timeout_seconds is None:
@@ -83,7 +80,7 @@ class Agent(ABC):
                     events=events, default_timeout_seconds=self.http_timeout_seconds
                 )
 
-            from .types import Message
+            from .protocol import Message
 
             messages = [Message(**msg) for msg in input_json["messages"]]
 
@@ -98,13 +95,13 @@ class Agent(ABC):
 
             result = self.handle(context)
 
-            if isinstance(result, AgentResponseContinue):
+            if isinstance(result, ContinueConversationResponse):
                 response = ExternalAgentResponse(
                     command=SendMessageCommand(payload=SendMessagePayload(message=result.message)),
                     valuesToSave=valueStorage if valueStorage else None,
                     events=events if events else None,
                 )
-            elif isinstance(result, AgentResponseFinish):
+            elif isinstance(result, TransferToBlockResponse):
                 payload = GoToNextBlockPayload(
                     nextBlockReferenceKey=result.next_block,
                     message=result.message,

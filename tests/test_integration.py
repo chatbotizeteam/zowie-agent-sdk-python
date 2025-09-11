@@ -1,19 +1,18 @@
 """Integration tests for the complete SDK."""
 
-import pytest
 import base64
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
 from zowie_agent_sdk import (
     Agent,
-    AgentResponseContinue,
-    AgentResponseFinish,
-    Context,
-    GoogleConfig,
     APIKeyAuth,
     BasicAuth,
-    BearerTokenAuth,
+    Context,
+    ContinueConversationResponse,
+    GoogleProviderConfig,
+    TransferToBlockResponse,
 )
 
 
@@ -29,14 +28,14 @@ class IntegrationTestAgent(Agent):
         context.store_value("message_count", len(context.messages))
         
         if "finish" in last_message:
-            return AgentResponseFinish(
+            return TransferToBlockResponse(
                 message="Task completed",
                 next_block="completion_block"
             )
         elif "error" in last_message:
             raise ValueError("Simulated error")
         else:
-            return AgentResponseContinue(
+            return ContinueConversationResponse(
                 message=f"Processed {len(context.messages)} messages"
             )
 
@@ -53,7 +52,7 @@ class TestIntegration:
         
         # Create agent
         agent = IntegrationTestAgent(
-            llm_config=GoogleConfig(api_key="test-key", model="gemini-2.0-flash")
+            llm_config=GoogleProviderConfig(api_key="test-key", model="gemini-2.0-flash")
         )
         client = TestClient(agent.app)
         
@@ -95,7 +94,7 @@ class TestIntegration:
         # Create agent with auth
         auth_config = APIKeyAuth(header_name="X-API-Key", api_key="secret-key")
         agent = IntegrationTestAgent(
-            llm_config=GoogleConfig(api_key="test-key", model="gemini-2.0-flash"),
+            llm_config=GoogleProviderConfig(api_key="test-key", model="gemini-2.0-flash"),
             auth_config=auth_config
         )
         client = TestClient(agent.app)
@@ -134,7 +133,7 @@ class TestIntegration:
         # Create agent with basic auth
         auth_config = BasicAuth(username="admin", password="secret")
         agent = IntegrationTestAgent(
-            llm_config=GoogleConfig(api_key="test-key", model="gemini-2.0-flash"),
+            llm_config=GoogleProviderConfig(api_key="test-key", model="gemini-2.0-flash"),
             auth_config=auth_config
         )
         client = TestClient(agent.app)
@@ -168,7 +167,7 @@ class TestIntegration:
         mock_google_provider.return_value = mock_provider_instance
         
         agent = IntegrationTestAgent(
-            llm_config=GoogleConfig(api_key="test-key", model="gemini-2.0-flash")
+            llm_config=GoogleProviderConfig(api_key="test-key", model="gemini-2.0-flash")
         )
         client = TestClient(agent.app)
         
@@ -204,7 +203,7 @@ class TestIntegration:
         mock_google_provider.return_value = mock_provider_instance
         
         agent = IntegrationTestAgent(
-            llm_config=GoogleConfig(api_key="test-key", model="gemini-2.0-flash")
+            llm_config=GoogleProviderConfig(api_key="test-key", model="gemini-2.0-flash")
         )
         client = TestClient(agent.app)
         
@@ -247,10 +246,10 @@ class TestIntegration:
         class EmptyValuesAgent(Agent):
             def handle(self, context: Context):
                 # Don't store any values
-                return AgentResponseContinue(message="No values stored")
+                return ContinueConversationResponse(message="No values stored")
         
         agent = EmptyValuesAgent(
-            llm_config=GoogleConfig(api_key="test-key", model="gemini-2.0-flash")
+            llm_config=GoogleProviderConfig(api_key="test-key", model="gemini-2.0-flash")
         )
         client = TestClient(agent.app)
         

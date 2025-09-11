@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import HTTPException, Request, status
 
-from .types import APIKeyAuth, AuthConfig, BasicAuth, BearerTokenAuth
+from .domain import APIKeyAuth, AuthConfig, BasicAuth, BearerTokenAuth
 
 
 class AuthValidator:

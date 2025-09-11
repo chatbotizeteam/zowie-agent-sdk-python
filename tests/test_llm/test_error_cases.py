@@ -1,12 +1,14 @@
 """Tests for LLM provider error handling."""
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 import requests
 
+from zowie_agent_sdk import Content
+from zowie_agent_sdk.domain import LLMResponse
 from zowie_agent_sdk.llm import LLM
-from zowie_agent_sdk import Content, GoogleConfig, OpenAIConfig
-from zowie_agent_sdk.types import LLMResponse, LLMCallEvent
+from zowie_agent_sdk.protocol import LLMCallEvent
 
 
 class TestLLMErrorHandling:
@@ -162,7 +164,7 @@ class TestLLMErrorHandling:
         # Simulate an error that should still record an event
         def side_effect_with_event(*args, **kwargs):
             # Add a mock event before raising
-            from zowie_agent_sdk.types import LLMCallEventPayload
+            from zowie_agent_sdk.protocol import LLMCallEventPayload
             events.append(
                 LLMCallEvent(
                     payload=LLMCallEventPayload(

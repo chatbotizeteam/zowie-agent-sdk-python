@@ -1,15 +1,15 @@
 """Tests for error handling and edge cases."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-import json
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from zowie_agent_sdk import (
     Agent,
-    AgentResponseContinue,
     Context,
-    GoogleConfig,
+    ContinueConversationResponse,
+    GoogleProviderConfig,
 )
 
 
@@ -21,7 +21,7 @@ class ErrorAgent(Agent):
             raise RuntimeError("Runtime error for testing")
         if context.messages and "error" in context.messages[-1].content.lower():
             raise ValueError("Intentional error for testing")
-        return AgentResponseContinue(message="Success")
+        return ContinueConversationResponse(message="Success")
 
 
 class TestErrorHandling:
@@ -33,7 +33,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         # Send invalid JSON
@@ -51,7 +51,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         # Missing metadata entirely
@@ -66,8 +66,8 @@ class TestErrorHandling:
         }
         
         # This will raise a KeyError and FastAPI will re-raise it
-        with pytest.raises(Exception):  # Could be KeyError or wrapped exception
-            response = client.post("/", json=request_data)
+        with pytest.raises(KeyError):
+            client.post("/", json=request_data)
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_missing_required_metadata_fields(self, mock_google_provider):
@@ -75,7 +75,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         # Missing requestId in metadata
@@ -88,8 +88,8 @@ class TestErrorHandling:
         }
         
         # This will raise a KeyError for missing requestId
-        with pytest.raises(Exception):
-            response = client.post("/", json=request_data)
+        with pytest.raises(KeyError):
+            client.post("/", json=request_data)
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_agent_raises_exception(self, mock_google_provider):
@@ -97,7 +97,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         request_data = {
@@ -117,7 +117,7 @@ class TestErrorHandling:
         
         # Agent raises ValueError, FastAPI will re-raise it in test mode
         with pytest.raises(ValueError, match="Intentional error for testing"):
-            response = client.post("/", json=request_data)
+            client.post("/", json=request_data)
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_empty_messages_array(self, mock_google_provider):
@@ -125,7 +125,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         request_data = {
@@ -150,7 +150,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         # Create 100+ messages
@@ -183,7 +183,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         request_data = {
@@ -217,7 +217,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         request_data = {
@@ -247,7 +247,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         request_data = {
@@ -265,9 +265,18 @@ class TestErrorHandling:
             ],
         }
         
-        # Should still process - we don't validate author values strictly
-        response = client.post("/", json=request_data)
-        assert response.status_code == 200
+        # Should reject invalid author values according to SPEC
+        # The validation error is raised during request processing, 
+        # so we need to catch it as an exception
+        import pytest
+        from pydantic import ValidationError
+        
+        with pytest.raises(ValidationError) as exc_info:
+            client.post("/", json=request_data)
+        
+        # Verify it's specifically an author validation error
+        assert "author" in str(exc_info.value)
+        assert "literal_error" in str(exc_info.value)
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_different_runtime_errors(self, mock_google_provider):
@@ -275,7 +284,7 @@ class TestErrorHandling:
         mock_provider_instance = MagicMock()
         mock_google_provider.return_value = mock_provider_instance
         
-        agent = ErrorAgent(llm_config=GoogleConfig(api_key="test", model="test"))
+        agent = ErrorAgent(llm_config=GoogleProviderConfig(api_key="test", model="test"))
         client = TestClient(agent.app)
         
         request_data = {
@@ -295,4 +304,4 @@ class TestErrorHandling:
         
         # Agent raises RuntimeError, FastAPI will re-raise it in test mode
         with pytest.raises(RuntimeError, match="Runtime error for testing"):
-            response = client.post("/", json=request_data)
+            client.post("/", json=request_data)

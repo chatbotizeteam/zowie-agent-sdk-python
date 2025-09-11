@@ -4,7 +4,7 @@ from typing import Any, Callable, List, Optional
 
 from .http import HTTPClient
 from .llm import LLM
-from .types import Message, Metadata
+from .protocol import Message, Metadata
 
 
 class Context:

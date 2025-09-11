@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from .types import APICallEvent, APICallEventPayload, Event
+from .protocol import APICallEvent, APICallEventPayload, Event
 from .utils import get_time_ms
 
 

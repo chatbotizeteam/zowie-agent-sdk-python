@@ -1,18 +1,17 @@
 """Tests for Agent class."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from zowie_agent_sdk import (
     Agent,
-    AgentResponseContinue,
-    AgentResponseFinish,
     Context,
-    GoogleConfig,
+    ContinueConversationResponse,
+    TransferToBlockResponse,
 )
-from zowie_agent_sdk.types import ExternalAgentResponse
 
 
 class MockTestAgent(Agent):
@@ -21,11 +20,11 @@ class MockTestAgent(Agent):
     def handle(self, context: Context):
         """Simple test handler."""
         if context.messages and "stop" in context.messages[-1].content.lower():
-            return AgentResponseFinish(
+            return TransferToBlockResponse(
                 message="Goodbye!",
                 next_block="end_block"
             )
-        return AgentResponseContinue(
+        return ContinueConversationResponse(
             message="Test response"
         )
 
@@ -122,7 +121,7 @@ class TestAgentClass:
             def handle(self, context: Context):
                 context.store_value("test_key", "test_value")
                 context.store_value("test_number", 42)
-                return AgentResponseContinue(message="Stored values")
+                return ContinueConversationResponse(message="Stored values")
         
         agent = StorageTestAgent(llm_config=google_config)
         client = TestClient(agent.app)

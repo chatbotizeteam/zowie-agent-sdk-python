@@ -13,13 +13,15 @@ from openai.types.responses.response_format_text_json_schema_config_param import
 from openai.types.responses.response_text_config_param import ResponseTextConfigParam
 from pydantic import BaseModel
 
-from ..types import (
+from ..domain import (
     Content,
+    LLMResponse,
+    OpenAIProviderConfig,
+)
+from ..protocol import (
     Event,
     LLMCallEvent,
     LLMCallEventPayload,
-    LLMResponse,
-    OpenAIConfig,
     Persona,
 )
 from ..utils import get_time_ms
@@ -29,7 +31,7 @@ from .base import BaseLLMProvider
 class OpenAIProvider(BaseLLMProvider):
     def __init__(
         self,
-        config: OpenAIConfig,
+        config: OpenAIProviderConfig,
         events: List[Event],
         persona: Optional[Persona],
     ):

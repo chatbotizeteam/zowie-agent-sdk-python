@@ -3,33 +3,35 @@ from importlib.metadata import version as _version
 
 from .agent import Agent
 from .context import Context
-from .types import (
+from .domain import (
     AgentResponse,
-    AgentResponseContinue,
-    AgentResponseFinish,
     APIKeyAuth,
     AuthConfig,
     BasicAuth,
     BearerTokenAuth,
     Content,
-    GoogleConfig,
+    ContinueConversationResponse,
+    GoogleProviderConfig,
     LLMResponse,
+    OpenAIProviderConfig,
+    TransferToBlockResponse,
+)
+from .protocol import (
     Metadata,
-    OpenAIConfig,
 )
 
 __all__ = (
     "Agent",
     "Context",
-    "AgentResponseContinue",
-    "AgentResponseFinish",
+    "ContinueConversationResponse",
+    "TransferToBlockResponse",
     "AgentResponse",
     "APIKeyAuth",
     "BasicAuth",
     "BearerTokenAuth",
     "AuthConfig",
-    "GoogleConfig",
-    "OpenAIConfig",
+    "GoogleProviderConfig",
+    "OpenAIProviderConfig",
     "Content",
     "LLMResponse",
     "Metadata",

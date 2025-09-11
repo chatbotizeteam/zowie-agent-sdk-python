@@ -1,12 +1,13 @@
 """Tests for HTTPClient class."""
 
-import pytest
 import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import pytest
 import requests
 
 from zowie_agent_sdk.http import HTTPClient
-from zowie_agent_sdk.types import APICallEvent
+from zowie_agent_sdk.protocol import APICallEvent
 
 
 class TestHTTPClient:

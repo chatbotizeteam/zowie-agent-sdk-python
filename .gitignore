@@ -3,3 +3,4 @@ dist/
 .claude/**/*
 SPEC.md
 .coverage
+CLAUDE.md

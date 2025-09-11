@@ -3,37 +3,40 @@ from __future__ import annotations
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
+from pydantic.alias_generators import to_camel
 
 
-class AgentResponseContinue(BaseModel):
+class ContinueConversationResponse(BaseModel):
     type: Literal["continue"] = "continue"
     message: str
 
 
-class AgentResponseFinish(BaseModel):
+class TransferToBlockResponse(BaseModel):
     type: Literal["finish"] = "finish"
     message: Optional[str] = None
     next_block: str
 
 
 AgentResponse = Annotated[
-    Union[AgentResponseContinue, AgentResponseFinish], Field(discriminator="type")
+    Union[ContinueConversationResponse, TransferToBlockResponse], Field(discriminator="type")
 ]
 
 
-class OpenAIConfig(BaseModel):
+class OpenAIProviderConfig(BaseModel):
     provider: Literal["openai"] = "openai"
     api_key: str
     model: str
 
 
-class GoogleConfig(BaseModel):
+class GoogleProviderConfig(BaseModel):
     provider: Literal["google"] = "google"
     api_key: str
     model: str
 
 
-LLMConfig = Annotated[Union[OpenAIConfig, GoogleConfig], Field(discriminator="provider")]
+LLMConfig = Annotated[
+    Union[OpenAIProviderConfig, GoogleProviderConfig], Field(discriminator="provider")
+]
 
 
 class APIKeyAuth(BaseModel):
@@ -88,9 +91,14 @@ Event = Annotated[Union[LLMCallEvent, APICallEvent], Field(discriminator="type")
 
 
 class Persona(BaseModel):
-    name: Optional[str]
-    businessContext: Optional[str]
-    toneOfVoice: Optional[str]
+    model_config = {
+        "alias_generator": to_camel,
+        "populate_by_name": True,  # Allow both snake_case and camelCase for input
+    }
+
+    name: Optional[str] = None
+    business_context: Optional[str] = None
+    tone_of_voice: Optional[str] = None
 
 
 class Content(BaseModel):
@@ -114,7 +122,7 @@ class Metadata(BaseModel):
 
 
 class Message(BaseModel):
-    author: str
+    author: Literal["User", "Chatbot"]
     content: str
     timestamp: str
 

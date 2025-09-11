@@ -5,13 +5,23 @@ from typing import List, Optional, Type, Union
 
 from pydantic import BaseModel
 
-from ..types import Content, Event, GoogleConfig, LLMConfig, LLMResponse, OpenAIConfig, Persona
+from ..domain import (
+    Content,
+    GoogleProviderConfig,
+    LLMConfig,
+    LLMResponse,
+    OpenAIProviderConfig,
+)
+from ..protocol import (
+    Event,
+    Persona,
+)
 
 
 class BaseLLMProvider(ABC):
     def __init__(
         self,
-        config: Union[GoogleConfig, OpenAIConfig],
+        config: Union[GoogleProviderConfig, OpenAIProviderConfig],
         events: List[Event],
         persona: Optional[Persona],
     ):
@@ -70,9 +80,9 @@ class LLM:
         from .google import GoogleProvider
         from .openai import OpenAIProvider
 
-        if isinstance(config, GoogleConfig):
+        if isinstance(config, GoogleProviderConfig):
             self.provider = GoogleProvider(config=config, events=events, persona=persona)
-        elif isinstance(config, OpenAIConfig):
+        elif isinstance(config, OpenAIProviderConfig):
             self.provider = OpenAIProvider(config=config, events=events, persona=persona)
 
     def generate_content(

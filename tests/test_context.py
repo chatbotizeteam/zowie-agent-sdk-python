@@ -1,11 +1,10 @@
 """Tests for Context class."""
 
-import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from zowie_agent_sdk import Context
-from zowie_agent_sdk.llm import LLM
 from zowie_agent_sdk.http import HTTPClient
+from zowie_agent_sdk.llm import LLM
 
 
 class TestContext:

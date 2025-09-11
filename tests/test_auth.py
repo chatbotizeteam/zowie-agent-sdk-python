@@ -1,12 +1,11 @@
 """Tests for authentication module."""
 
 import base64
+
 import pytest
-from unittest.mock import Mock
 from fastapi import HTTPException
 
 from zowie_agent_sdk.auth import AuthValidator
-from zowie_agent_sdk import APIKeyAuth, BasicAuth, BearerTokenAuth
 
 
 class TestAuthValidator:

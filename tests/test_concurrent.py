@@ -1,16 +1,16 @@
 """Tests for concurrent request handling."""
 
-import pytest
 import threading
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from fastapi.testclient import TestClient
 
 from zowie_agent_sdk import (
     Agent,
-    AgentResponseContinue,
     Context,
-    GoogleConfig,
+    ContinueConversationResponse,
+    GoogleProviderConfig,
 )
 
 
@@ -31,7 +31,7 @@ class ConcurrentTestAgent(Agent):
         # Simulate some processing time
         time.sleep(0.01)
         
-        return AgentResponseContinue(
+        return ContinueConversationResponse(
             message=f"Response {current_count}"
         )
 
@@ -46,7 +46,7 @@ class TestConcurrentRequests:
         mock_google_provider.return_value = mock_provider_instance
         
         agent = ConcurrentTestAgent(
-            llm_config=GoogleConfig(api_key="test", model="test")
+            llm_config=GoogleProviderConfig(api_key="test", model="test")
         )
         client = TestClient(agent.app)
         
@@ -116,10 +116,10 @@ class TestConcurrentRequests:
                 context.store_value("request_id", request_id)
                 context.store_value("timestamp", time.time())
                 time.sleep(0.01)  # Simulate processing
-                return AgentResponseContinue(message=f"Stored {request_id}")
+                return ContinueConversationResponse(message=f"Stored {request_id}")
         
         agent = ValueStorageAgent(
-            llm_config=GoogleConfig(api_key="test", model="test")
+            llm_config=GoogleProviderConfig(api_key="test", model="test")
         )
         client = TestClient(agent.app)
         
@@ -164,7 +164,7 @@ class TestConcurrentRequests:
         
         auth_config = APIKeyAuth(header_name="X-API-Key", api_key="secret-key")
         agent = ConcurrentTestAgent(
-            llm_config=GoogleConfig(api_key="test", model="test"),
+            llm_config=GoogleProviderConfig(api_key="test", model="test"),
             auth_config=auth_config
         )
         client = TestClient(agent.app)

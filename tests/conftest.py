@@ -1,21 +1,21 @@
 """Shared pytest fixtures and configuration."""
 
+from typing import Any, Dict, List
+from unittest.mock import Mock
+
 import pytest
-from typing import Dict, Any, List
-from unittest.mock import Mock, MagicMock
 
 from zowie_agent_sdk import (
-    GoogleConfig,
-    OpenAIConfig,
     APIKeyAuth,
     BasicAuth,
     BearerTokenAuth,
+    GoogleProviderConfig,
+    OpenAIProviderConfig,
 )
-from zowie_agent_sdk.types import (
-    Metadata,
+from zowie_agent_sdk.protocol import (
     Message,
+    Metadata,
     Persona,
-    Event,
 )
 
 
@@ -58,18 +58,18 @@ def sample_persona() -> Persona:
 
 
 @pytest.fixture
-def google_config() -> GoogleConfig:
+def google_config() -> GoogleProviderConfig:
     """Google LLM configuration for testing."""
-    return GoogleConfig(
+    return GoogleProviderConfig(
         api_key="test-google-api-key",
         model="gemini-2.0-flash",
     )
 
 
 @pytest.fixture
-def openai_config() -> OpenAIConfig:
+def openai_config() -> OpenAIProviderConfig:
     """OpenAI LLM configuration for testing."""
-    return OpenAIConfig(
+    return OpenAIProviderConfig(
         api_key="test-openai-api-key",
         model="gpt-4",
     )

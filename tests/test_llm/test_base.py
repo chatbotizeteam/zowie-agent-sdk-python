@@ -1,12 +1,13 @@
 """Tests for LLM base class."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from zowie_agent_sdk import Content, GoogleProviderConfig
+from zowie_agent_sdk.domain import LLMResponse
 from zowie_agent_sdk.llm import LLM
 from zowie_agent_sdk.llm.base import BaseLLMProvider
-from zowie_agent_sdk import Content, GoogleConfig, OpenAIConfig
-from zowie_agent_sdk.types import LLMResponse
 
 
 class TestLLMBase:
@@ -20,7 +21,9 @@ class TestLLMBase:
         assert llm.provider is None
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
-    def test_llm_initialization_with_google_config(self, mock_google_provider, google_config, sample_persona):
+    def test_llm_initialization_with_google_config(
+        self, mock_google_provider, google_config, sample_persona
+    ):
         """Test LLM initialization with Google config."""
         events = []
         mock_provider_instance = MagicMock()
@@ -137,15 +140,16 @@ class TestLLMBase:
 
     def test_persona_instruction_building(self):
         """Test persona instruction building in BaseLLMProvider."""
-        from zowie_agent_sdk.llm.base import BaseLLMProvider
-        from zowie_agent_sdk.types import Persona
+        from zowie_agent_sdk.protocol import Persona
         
         # Create a concrete implementation for testing
         class TestProvider(BaseLLMProvider):
             def generate_content(self, contents, system_instruction=None, **kwargs):
                 return None
             
-            def generate_structured_content(self, contents, schema, system_instruction=None, **kwargs):
+            def generate_structured_content(
+                self, contents, schema, system_instruction=None, **kwargs
+            ):
                 return None
         
         # Test with full persona
@@ -155,7 +159,7 @@ class TestLLMBase:
             tone_of_voice="Friendly"
         )
         
-        config = GoogleConfig(api_key="test", model="test")
+        config = GoogleProviderConfig(api_key="test", model="test")
         provider = TestProvider(config=config, events=[], persona=persona)
         
         instruction = provider._build_persona_instruction()

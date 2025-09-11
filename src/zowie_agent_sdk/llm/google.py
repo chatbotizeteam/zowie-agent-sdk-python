@@ -6,13 +6,15 @@ from typing import Any, Dict, List, Optional, Type, Union
 from google import genai
 from pydantic import BaseModel
 
-from ..types import (
+from ..domain import (
     Content,
+    GoogleProviderConfig,
+    LLMResponse,
+)
+from ..protocol import (
     Event,
-    GoogleConfig,
     LLMCallEvent,
     LLMCallEventPayload,
-    LLMResponse,
     Persona,
 )
 from ..utils import get_time_ms
@@ -22,7 +24,7 @@ from .base import BaseLLMProvider
 class GoogleProvider(BaseLLMProvider):
     def __init__(
         self,
-        config: GoogleConfig,
+        config: GoogleProviderConfig,
         events: List[Event],
         persona: Optional[Persona],
     ):
@@ -32,10 +34,7 @@ class GoogleProvider(BaseLLMProvider):
     def _prepare_contents(self, contents: List[Content]) -> List[genai.types.ContentDict]:
         prepared_contents: List[genai.types.ContentDict] = []
         for content in contents:
-            prepared_contents.append({
-                "role": content.role, 
-                "parts": [{"text": content.text}]
-            })
+            prepared_contents.append({"role": content.role, "parts": [{"text": content.text}]})
         return prepared_contents
 
     def _build_system_instruction(self, system_instruction: Optional[str] = None) -> str:
@@ -99,10 +98,6 @@ class GoogleProvider(BaseLLMProvider):
                 return parsed_schema
             except libJson.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSON schema string: {e}") from e
-        else:
-            raise ValueError(
-                f"Schema must be a Pydantic model class or JSON string. Got: {type(schema)}"
-            )
 
     def generate_structured_content(
         self,
