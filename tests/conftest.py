@@ -148,5 +148,4 @@ def mock_llm_response() -> Dict[str, Any]:
         "raw_response": {"test": "data"},
         "provider": "google",
         "model": "gemini-2.0-flash",
-        "usage": {"tokens": 100},
     }

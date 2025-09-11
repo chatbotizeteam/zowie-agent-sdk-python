@@ -7,7 +7,7 @@ external API contract.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Dict, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -104,4 +104,3 @@ class LLMResponse(BaseModel):
     raw_response: Any
     provider: str
     model: str
-    usage: Optional[Dict[str, Any]] = None

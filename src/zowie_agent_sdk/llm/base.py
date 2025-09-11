@@ -49,11 +49,11 @@ class BaseLLMProvider(ABC):
     @abstractmethod
     def _prepare_contents(self, contents: List[Content]) -> Any:
         """Prepare contents for the specific provider's API format.
-        
+
         Each provider has different content format requirements:
-        - Google: List[genai.types.ContentDict] 
+        - Google: List[genai.types.ContentDict]
         - OpenAI: List[ResponseInputItemParam]
-        
+
         Returns:
             Provider-specific content format
         """

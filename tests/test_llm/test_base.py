@@ -74,7 +74,6 @@ class TestLLMBase:
             raw_response={},
             provider="google",
             model="gemini-2.0-flash",
-            usage=None
         )
         mock_provider_instance.generate_content.return_value = mock_response
         mock_google_provider.return_value = mock_provider_instance
@@ -111,7 +110,6 @@ class TestLLMBase:
             raw_response={},
             provider="openai",
             model="gpt-4",
-            usage={"tokens": 100}
         )
         mock_provider_instance.generate_structured_content.return_value = mock_response
         mock_openai_provider.return_value = mock_provider_instance

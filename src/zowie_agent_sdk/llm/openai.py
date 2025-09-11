@@ -69,7 +69,10 @@ class OpenAIProvider(BaseLLMProvider):
         )
         stop = get_time_ms()
 
-        prompt_data = {"messages": messages}
+        prompt_data = {
+            "messages": messages,
+            "system_instruction": instructions_str,
+        }
 
         self.events.append(
             LLMCallEvent(
@@ -114,12 +117,15 @@ class OpenAIProvider(BaseLLMProvider):
 
         # Use native Pydantic support when possible
         if isinstance(schema, type) and issubclass(schema, BaseModel):
-            return self._generate_with_pydantic_native(messages, schema)
+            return self._generate_with_pydantic_native(messages, schema, instructions_str)
         else:
-            return self._generate_with_json_schema(messages, schema)
+            return self._generate_with_json_schema(messages, schema, instructions_str)
 
     def _generate_with_pydantic_native(
-        self, messages: List[ChatCompletionMessageParam], schema: Type[BaseModel]
+        self, 
+        messages: List[ChatCompletionMessageParam], 
+        schema: Type[BaseModel], 
+        instructions_str: str
     ) -> LLMResponse:
         """Generate structured content using native Pydantic support."""
         start = get_time_ms()
@@ -130,9 +136,14 @@ class OpenAIProvider(BaseLLMProvider):
         )
         stop = get_time_ms()
 
+        # Get the JSON schema for consistent event reporting
+        json_schema = self._parse_schema(schema)
+        
         prompt_data = {
             "messages": messages,
-            "response_format": schema.__name__,
+            "system_instruction": instructions_str,
+            "response_json_schema": json_schema,
+            "pydantic_model": schema.__name__,  # Indicate native Pydantic was used
         }
 
         self.events.append(
@@ -162,7 +173,8 @@ class OpenAIProvider(BaseLLMProvider):
     def _generate_with_json_schema(
         self, 
         messages: List[ChatCompletionMessageParam], 
-        schema: Dict[str, Any]
+        schema: Dict[str, Any],
+        instructions_str: str
     ) -> LLMResponse:
         """Generate structured content using JSON schema for dict inputs."""
         json_schema = self._parse_schema(schema)
@@ -185,6 +197,7 @@ class OpenAIProvider(BaseLLMProvider):
 
         prompt_data = {
             "messages": messages,
+            "system_instruction": instructions_str,
             "response_json_schema": json_schema,
         }
 

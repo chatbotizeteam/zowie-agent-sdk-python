@@ -120,7 +120,6 @@ class TestLLMErrorHandling:
             raw_response={},
             provider="openai",
             model="gpt-4",
-            usage=None
         )
         mock_openai_provider.return_value = mock_provider_instance
         
@@ -145,7 +144,6 @@ class TestLLMErrorHandling:
             raw_response={},
             provider="google",
             model="gemini-2.0-flash",
-            usage=None
         )
         mock_google_provider.return_value = mock_provider_instance
         
@@ -223,7 +221,6 @@ class TestLLMErrorHandling:
             raw_response={},
             provider="google",
             model="gemini-2.0-flash",
-            usage={"tokens": 10000}
         )
         mock_google_provider.return_value = mock_provider_instance
         
@@ -235,4 +232,3 @@ class TestLLMErrorHandling:
         
         response = llm.generate_content(contents)
         assert response.text == "Response to long prompt"
-        assert response.usage["tokens"] == 10000
