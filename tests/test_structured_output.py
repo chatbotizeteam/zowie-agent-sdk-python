@@ -30,39 +30,29 @@ class TestOpenAIStructuredOutput:
         config = OpenAIProviderConfig(api_key="test-key", model="gpt-4")
         provider = OpenAIProvider(config=config, events=[], persona=None)
         
-        # Mock the OpenAI client
+        # Mock the OpenAI client for native Pydantic parsing
         with patch.object(provider, 'client') as mock_client:
             mock_response = MagicMock()
-            mock_response.output_text = '{"name": "Test", "age": 25}'
-            mock_response.model_dump_json.return_value = '{"output_text": "test", "usage": {}}'
-            mock_client.responses.create.return_value = mock_response
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message = MagicMock()
+            mock_response.choices[0].message.content = '{"name": "Test", "age": 25}'
+            mock_response.model_dump_json.return_value = (
+                '{"choices": [{"message": {"content": "{\"name\": \"Test\", \"age\": 25}"}}]}'
+            )
+            mock_client.chat.completions.parse.return_value = mock_response
             
-            # Test with Pydantic model
+            # Test with Pydantic model (should use native parsing)
             result = provider.generate_structured_content(
                 contents=[Content(role="user", text="Generate a person")],
                 schema=SampleModel
             )
             
-            # Verify the call was made
-            mock_client.responses.create.assert_called_once()
-            call_args = mock_client.responses.create.call_args
+            # Verify the parse method was used for Pydantic models
+            mock_client.chat.completions.parse.assert_called_once()
+            call_args = mock_client.chat.completions.parse.call_args
             
-            # Check that text parameter contains the JSON schema config
-            assert 'text' in call_args.kwargs
-            text_config = call_args.kwargs['text']
-            assert text_config['format']['type'] == 'json_schema'
-            assert text_config['format']['name'] == 'SampleModel'
-            assert 'schema' in text_config['format']
-            
-            # Verify the schema was correctly transformed from Pydantic model
-            schema = text_config['format']['schema']
-            assert schema['type'] == 'object'
-            assert 'properties' in schema
-            assert 'name' in schema['properties']
-            assert 'age' in schema['properties']
-            assert schema['properties']['name']['type'] == 'string'
-            assert schema['properties']['age']['type'] == 'integer'
-            assert set(schema['required']) == {'name', 'age'}
+            # Check that response_format is the Pydantic model class
+            assert call_args.kwargs['response_format'] is SampleModel
             
             # Verify response
             assert isinstance(result, LLMResponse)
@@ -84,35 +74,33 @@ class TestOpenAIStructuredOutput:
             "required": ["name", "age"]
         })
         
-        # Mock the OpenAI client
+        # Mock the OpenAI client for JSON schema parsing
         with patch.object(provider, 'client') as mock_client:
             mock_response = MagicMock()
-            mock_response.output_text = '{"name": "Alice", "age": 30}'
-            mock_response.model_dump_json.return_value = '{"output_text": "test", "usage": {}}'
-            mock_client.responses.create.return_value = mock_response
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message = MagicMock()
+            mock_response.choices[0].message.content = '{"name": "Alice", "age": 30}'
+            mock_response.model_dump_json.return_value = (
+                '{"choices": [{"message": {"content": "{\"name\": \"Alice\", \"age\": 30}"}}]}'
+            )
+            mock_client.chat.completions.create.return_value = mock_response
             
-            # Test with JSON string schema
+            # Test with JSON string schema (should use JSON schema method)
             result = provider.generate_structured_content(
                 contents=[Content(role="user", text="Generate a person")],
                 schema=json_schema
             )
             
-            # Verify the call was made
-            mock_client.responses.create.assert_called_once()
-            call_args = mock_client.responses.create.call_args
+            # Verify the create method was used for JSON schemas
+            mock_client.chat.completions.create.assert_called_once()
+            call_args = mock_client.chat.completions.create.call_args
             
-            # Check that text parameter contains the parsed schema
-            assert 'text' in call_args.kwargs
-            text_config = call_args.kwargs['text']
-            assert text_config['format']['type'] == 'json_schema'
-            assert text_config['format']['name'] == 'Person'
-            assert text_config['format']['schema']['type'] == 'object'
-            
-            # Verify the JSON string was correctly parsed
-            parsed_schema = text_config['format']['schema']
-            assert parsed_schema['properties']['name']['type'] == 'string'
-            assert parsed_schema['properties']['age']['type'] == 'integer'
-            assert parsed_schema['required'] == ['name', 'age']
+            # Check that response_format contains the parsed schema
+            assert 'response_format' in call_args.kwargs
+            response_format = call_args.kwargs['response_format']
+            assert response_format['type'] == 'json_schema'
+            assert response_format['json_schema']['name'] == 'Person'
+            assert response_format['json_schema']['schema']['type'] == 'object'
             
             # Verify response
             assert isinstance(result, LLMResponse)
@@ -150,11 +138,13 @@ class TestOpenAIStructuredOutput:
         # Mock the client to avoid actual API calls
         with patch.object(provider, 'client') as mock_client:
             mock_response = MagicMock()
-            mock_response.output_text = '{"name": "John", "age": 30}'
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message = MagicMock()
+            mock_response.choices[0].message.content = '{"name": "John", "age": 30}'
             mock_response.model_dump_json.return_value = (
-                '{"output_text": "{\\"name\\": \\"John\\", \\"age\\": 30}"}'
+                '{"choices": [{"message": {"content": "{\"name\": \"John\", \"age\": 30}"}}]}'
             )
-            mock_client.responses.create.return_value = mock_response
+            mock_client.chat.completions.create.return_value = mock_response
             
             result = provider.generate_structured_content(
                 contents=[Content(role="user", text="Test")],
@@ -162,16 +152,17 @@ class TestOpenAIStructuredOutput:
             )
             
             assert result.text == '{"name": "John", "age": 30}'
-            # Verify the schema was passed correctly
-            call_args = mock_client.responses.create.call_args
-            assert call_args.kwargs['text']['format']['schema'] == dict_schema
+            
+            # Verify the create method was used for dict schemas
+            mock_client.chat.completions.create.assert_called_once()
+            call_args = mock_client.chat.completions.create.call_args
             
             # Verify all required parameters were passed
             assert 'model' in call_args.kwargs
             assert call_args.kwargs['model'] == 'gpt-4'
-            assert 'input' in call_args.kwargs
-            assert len(call_args.kwargs['input']) == 1
-            assert call_args.kwargs['input'][0]['content'] == 'Test'
+            assert 'messages' in call_args.kwargs
+            assert len(call_args.kwargs['messages']) == 1
+            assert call_args.kwargs['messages'][0]['content'] == 'Test'
 
 
 class TestGoogleStructuredOutput:

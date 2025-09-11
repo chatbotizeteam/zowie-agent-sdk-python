@@ -1,16 +1,10 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import Any, Dict, List, Literal, Optional, Type, Union, cast
+from typing import Any, Dict, List, Optional, Type, Union
 
 import openai
-from openai._types import NOT_GIVEN
-from openai.types.responses import ResponseInputItemParam
-from openai.types.responses.easy_input_message_param import EasyInputMessageParam
-from openai.types.responses.response_format_text_json_schema_config_param import (
-    ResponseFormatTextJSONSchemaConfigParam,
-)
-from openai.types.responses.response_text_config_param import ResponseTextConfigParam
+from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
 from ..domain import (
@@ -38,34 +32,44 @@ class OpenAIProvider(BaseLLMProvider):
         super().__init__(config, events, persona)
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
 
-    def _prepare_contents(self, contents: List[Content]) -> List[ResponseInputItemParam]:
-        """Prepare contents for OpenAI API format."""
-        input_messages: List[ResponseInputItemParam] = []
+    def _prepare_contents(self, contents: List[Content]) -> List[ChatCompletionMessageParam]:
+        """Prepare contents for OpenAI chat completion format."""
+        messages: List[ChatCompletionMessageParam] = []
         for content in contents:
-            role = "assistant" if content.role == "model" else "user"
-            message: EasyInputMessageParam = {
-                "type": "message",
-                "role": cast("Literal['user', 'assistant', 'system', 'developer']", role),
-                "content": content.text,
-            }
-            input_messages.append(message)
-        return input_messages
+            if content.role == "model":
+                messages.append({
+                    "role": "assistant",
+                    "content": content.text,
+                })
+            else:
+                messages.append({
+                    "role": "user", 
+                    "content": content.text,
+                })
+        return messages
 
     def generate_content(
         self, contents: List[Content], system_instruction: Optional[str] = None
     ) -> LLMResponse:
-        input_messages = self._prepare_contents(contents)
+        messages = self._prepare_contents(contents)
         instructions_str = self._build_system_instruction(system_instruction)
 
+        # Add system message if we have instructions
+        if instructions_str:
+            system_message: ChatCompletionMessageParam = {
+                "role": "system",
+                "content": instructions_str,
+            }
+            messages = [system_message] + messages
+
         start = get_time_ms()
-        response = self.client.responses.create(
+        response = self.client.chat.completions.create(
             model=self.model,
-            input=input_messages if input_messages else NOT_GIVEN,
-            instructions=instructions_str or NOT_GIVEN,
+            messages=messages,
         )
         stop = get_time_ms()
 
-        prompt_data = {"instructions": instructions_str, "input": input_messages}
+        prompt_data = {"messages": messages}
 
         self.events.append(
             LLMCallEvent(
@@ -78,7 +82,11 @@ class OpenAIProvider(BaseLLMProvider):
             )
         )
 
-        text = getattr(response, "output_text", "") or ""
+        text = ""
+        if response.choices and len(response.choices) > 0:
+            choice = response.choices[0]
+            if choice.message and choice.message.content:
+                text = choice.message.content
 
         return LLMResponse(
             text=text,
@@ -93,44 +101,38 @@ class OpenAIProvider(BaseLLMProvider):
         schema: Union[Dict[str, Any], str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
-        input_messages = self._prepare_contents(contents)
+        messages = self._prepare_contents(contents)
         instructions_str = self._build_system_instruction(system_instruction)
 
+        # Add system message if we have instructions
+        if instructions_str:
+            system_message: ChatCompletionMessageParam = {
+                "role": "system",
+                "content": instructions_str,
+            }
+            messages = [system_message] + messages
+
+        # Use native Pydantic support when possible
         if isinstance(schema, type) and issubclass(schema, BaseModel):
-            json_schema = schema.model_json_schema()
-            schema_name = schema.__name__
-        elif isinstance(schema, dict):
-            json_schema = schema
-            schema_name = json_schema.get("title", "structured_output")
-        elif isinstance(schema, str):
-            try:
-                json_schema = libJson.loads(schema)
-            except libJson.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON schema string: {e}") from e
-            schema_name = json_schema.get("title", "structured_output")
+            return self._generate_with_pydantic_native(messages, schema)
+        else:
+            return self._generate_with_json_schema(messages, schema)
 
-        response_format_cfg: ResponseTextConfigParam = {
-            "format": ResponseFormatTextJSONSchemaConfigParam(
-                name=schema_name,
-                type="json_schema",
-                schema=json_schema,
-                strict=True,
-            )
-        }
-
+    def _generate_with_pydantic_native(
+        self, messages: List[ChatCompletionMessageParam], schema: Type[BaseModel]
+    ) -> LLMResponse:
+        """Generate structured content using native Pydantic support."""
         start = get_time_ms()
-        response = self.client.responses.create(
+        response = self.client.chat.completions.parse(
             model=self.model,
-            input=input_messages if input_messages else NOT_GIVEN,
-            instructions=instructions_str or NOT_GIVEN,
-            text=response_format_cfg,
+            messages=messages,
+            response_format=schema,
         )
         stop = get_time_ms()
 
         prompt_data = {
-            "instructions": instructions_str,
-            "response_json_schema": json_schema,
-            "input": input_messages,
+            "messages": messages,
+            "response_format": schema.__name__,
         }
 
         self.events.append(
@@ -144,7 +146,64 @@ class OpenAIProvider(BaseLLMProvider):
             )
         )
 
-        text = getattr(response, "output_text", "") or ""
+        text = ""
+        if response.choices and len(response.choices) > 0:
+            choice = response.choices[0]
+            if choice.message and choice.message.content:
+                text = choice.message.content
+
+        return LLMResponse(
+            text=text,
+            raw_response=response,
+            provider="openai",
+            model=self.model,
+        )
+
+    def _generate_with_json_schema(
+        self, 
+        messages: List[ChatCompletionMessageParam], 
+        schema: Union[Dict[str, Any], str]
+    ) -> LLMResponse:
+        """Generate structured content using JSON schema for dict/string inputs."""
+        json_schema = self._parse_schema(schema)
+        schema_name = json_schema.get("title", "structured_output")
+
+        start = get_time_ms()
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "schema": json_schema,
+                    "strict": True,
+                }
+            }
+        )
+        stop = get_time_ms()
+
+        prompt_data = {
+            "messages": messages,
+            "response_json_schema": json_schema,
+        }
+
+        self.events.append(
+            LLMCallEvent(
+                payload=LLMCallEventPayload(
+                    model=self.model,
+                    prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
+                    response=response.model_dump_json(),
+                    durationInMillis=stop - start,
+                )
+            )
+        )
+
+        text = ""
+        if response.choices and len(response.choices) > 0:
+            choice = response.choices[0]
+            if choice.message and choice.message.content:
+                text = choice.message.content
 
         return LLMResponse(
             text=text,

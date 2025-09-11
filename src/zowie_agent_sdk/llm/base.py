@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as libJson
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type, Union
 
@@ -65,6 +66,23 @@ class BaseLLMProvider(ABC):
         if system_instruction:
             instructions_str += system_instruction
         return instructions_str
+
+    def _parse_schema(self, schema: Union[Dict[str, Any], str, Type[BaseModel]]) -> Dict[str, Any]:
+        """Parse schema from various input formats to JSON schema dict."""
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            return schema.model_json_schema()
+        elif isinstance(schema, dict):
+            return schema
+        elif isinstance(schema, str):
+            try:
+                parsed_schema: Dict[str, Any] = libJson.loads(schema)
+                return parsed_schema
+            except libJson.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON schema string: {e}") from e
+        else:
+            raise ValueError(
+                "Schema must be a Pydantic model class, dict, or a valid JSON schema string"
+            )
 
     def _build_persona_instruction(self) -> str:
         if self.persona is None:
