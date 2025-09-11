@@ -116,19 +116,39 @@ class TestOpenAIStructuredOutput:
                 schema=invalid_json
             )
 
-    def test_dict_input_raises_error(self):
-        """Test that dict inputs are rejected as expected."""
+    def test_dict_schema_accepted(self):
+        """Test that dict schemas are properly accepted and parsed."""
         config = OpenAIProviderConfig(api_key="test-key", model="gpt-4")
         provider = OpenAIProvider(config=config, events=[], persona=None)
         
-        # Dict should not be accepted
-        dict_schema = {"type": "object", "properties": {}}
+        # Dict schema should be accepted
+        dict_schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"}
+            },
+            "required": ["name", "age"]
+        }
         
-        with pytest.raises(ValueError, match="Schema must be a Pydantic model class"):
-            provider.generate_structured_content(
-                contents=[Content(role="user", text="Test")],
-                schema=dict_schema  # type: ignore
+        # Mock the client to avoid actual API calls
+        with patch.object(provider, 'client') as mock_client:
+            mock_response = MagicMock()
+            mock_response.output_text = '{"name": "John", "age": 30}'
+            mock_response.model_dump_json.return_value = (
+                '{"output_text": "{\\"name\\": \\"John\\", \\"age\\": 30}"}'
             )
+            mock_client.responses.create.return_value = mock_response
+            
+            result = provider.generate_structured_content(
+                contents=[Content(role="user", text="Test")],
+                schema=dict_schema
+            )
+            
+            assert result.text == '{"name": "John", "age": 30}'
+            # Verify the schema was passed correctly
+            call_args = mock_client.responses.create.call_args
+            assert call_args.kwargs['text']['format']['schema'] == dict_schema
 
 
 class TestGoogleStructuredOutput:
@@ -228,19 +248,42 @@ class TestGoogleStructuredOutput:
                 schema=invalid_json
             )
 
-    def test_dict_input_raises_error(self):
-        """Test that dict inputs are rejected as expected."""
+    def test_dict_schema_accepted(self):
+        """Test that dict schemas are properly accepted and parsed."""
         config = GoogleProviderConfig(api_key="test-key", model="gemini-pro")
         provider = GoogleProvider(config=config, events=[], persona=None)
         
-        # Dict should not be accepted
-        dict_schema = {"type": "object", "properties": {}}
+        # Dict schema should be accepted
+        dict_schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"}
+            },
+            "required": ["name", "age"]
+        }
         
-        with pytest.raises(ValueError, match="Schema must be a Pydantic model class"):
-            provider.generate_structured_content(
-                contents=[Content(role="user", text="Test")],
-                schema=dict_schema  # type: ignore
+        # Mock the client to avoid actual API calls
+        with patch.object(provider, 'client') as mock_client:
+            mock_response = MagicMock()
+            mock_response.candidates = [MagicMock()]
+            mock_response.candidates[0].content.parts = [MagicMock()]
+            mock_response.candidates[0].content.parts[0].text = '{"name": "John", "age": 30}'
+            mock_response.model_dump_json.return_value = (
+                '{"candidates": [{"content": {"parts": '
+                '[{"text": "{\\"name\\": \\"John\\", \\"age\\": 30}"}]}}]}'
             )
+            mock_client.models.generate_content.return_value = mock_response
+            
+            result = provider.generate_structured_content(
+                contents=[Content(role="user", text="Test")],
+                schema=dict_schema
+            )
+            
+            assert result.text == '{"name": "John", "age": 30}'
+            # Verify the schema was passed correctly
+            call_args = mock_client.models.generate_content.call_args
+            assert call_args.kwargs['config'].response_json_schema == dict_schema
 
 
 class TestLLMWrapperStructuredOutput:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import List, Literal, Optional, Type, Union, cast
+from typing import Any, Dict, List, Literal, Optional, Type, Union, cast
 
 import openai
 from openai._types import NOT_GIVEN
@@ -88,7 +88,7 @@ class OpenAIProvider(BaseLLMProvider):
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Union[str, Type[BaseModel]],
+        schema: Union[Dict[str, Any], str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
         instructions_str = self._build_persona_instruction()
@@ -108,6 +108,9 @@ class OpenAIProvider(BaseLLMProvider):
         if isinstance(schema, type) and issubclass(schema, BaseModel):
             json_schema = schema.model_json_schema()
             schema_name = schema.__name__
+        elif isinstance(schema, dict):
+            json_schema = schema
+            schema_name = json_schema.get("title", "structured_output")
         elif isinstance(schema, str):
             try:
                 json_schema = libJson.loads(schema)
@@ -116,7 +119,7 @@ class OpenAIProvider(BaseLLMProvider):
             schema_name = json_schema.get("title", "structured_output")
         else:
             raise ValueError(
-                f"Schema must be a Pydantic model class or JSON string. Got: {type(schema)}"
+                f"Schema must be a Pydantic model class, dict, or JSON string. Got: {type(schema)}"
             )
 
         response_format_cfg: ResponseTextConfigParam = {

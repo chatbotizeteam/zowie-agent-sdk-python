@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel
 
@@ -41,7 +41,7 @@ class BaseLLMProvider(ABC):
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Union[str, Type[BaseModel]],
+        schema: Union[Dict[str, Any], str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
         pass
@@ -95,7 +95,7 @@ class LLM:
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Union[str, Type[BaseModel]],
+        schema: Union[Dict[str, Any], str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
         if self.provider is None:

@@ -88,21 +88,27 @@ class GoogleProvider(BaseLLMProvider):
             model=self.model,
         )
 
-    def _parse_schema(self, schema: Union[str, Type[BaseModel]]) -> Dict[str, Any]:
+    def _parse_schema(self, schema: Union[Dict[str, Any], str, Type[BaseModel]]) -> Dict[str, Any]:
         if isinstance(schema, type) and issubclass(schema, BaseModel):
             json_schema: Dict[str, Any] = schema.model_json_schema()
             return json_schema
+        elif isinstance(schema, dict):
+            return schema
         elif isinstance(schema, str):
             try:
                 parsed_schema: Dict[str, Any] = libJson.loads(schema)
                 return parsed_schema
             except libJson.JSONDecodeError as e:
                 raise ValueError(f"Invalid JSON schema string: {e}") from e
+        else:
+            raise ValueError(
+                "Schema must be a Pydantic model class, dict, or a valid JSON schema string"
+            )
 
     def generate_structured_content(
         self,
         contents: List[Content],
-        schema: Union[str, Type[BaseModel]],
+        schema: Union[Dict[str, Any], str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
         prepared_contents = self._prepare_contents(contents)
