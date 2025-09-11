@@ -37,12 +37,6 @@ class GoogleProvider(BaseLLMProvider):
             prepared_contents.append({"role": content.role, "parts": [{"text": content.text}]})
         return prepared_contents
 
-    def _build_system_instruction(self, system_instruction: Optional[str] = None) -> str:
-        instructions_str = self._build_persona_instruction()
-        if system_instruction:
-            instructions_str += system_instruction
-        return instructions_str
-
     def generate_content(
         self, contents: List[Content], system_instruction: Optional[str] = None
     ) -> LLMResponse:

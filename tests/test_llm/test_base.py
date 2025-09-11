@@ -151,6 +151,9 @@ class TestLLMBase:
                 self, contents, schema, system_instruction=None, **kwargs
             ):
                 return None
+
+            def _prepare_contents(self, contents):
+                return contents  # Simple passthrough for test
         
         # Test with full persona
         persona = Persona(

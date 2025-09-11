@@ -46,6 +46,26 @@ class BaseLLMProvider(ABC):
     ) -> LLMResponse:
         pass
 
+    @abstractmethod
+    def _prepare_contents(self, contents: List[Content]) -> Any:
+        """Prepare contents for the specific provider's API format.
+        
+        Each provider has different content format requirements:
+        - Google: List[genai.types.ContentDict] 
+        - OpenAI: List[ResponseInputItemParam]
+        
+        Returns:
+            Provider-specific content format
+        """
+        pass
+
+    def _build_system_instruction(self, system_instruction: Optional[str] = None) -> str:
+        """Build system instruction combining persona and additional instructions."""
+        instructions_str = self._build_persona_instruction()
+        if system_instruction:
+            instructions_str += system_instruction
+        return instructions_str
+
     def _build_persona_instruction(self) -> str:
         if self.persona is None:
             return ""

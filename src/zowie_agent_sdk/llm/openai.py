@@ -38,13 +38,8 @@ class OpenAIProvider(BaseLLMProvider):
         super().__init__(config, events, persona)
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
 
-    def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None
-    ) -> LLMResponse:
-        instructions_str = self._build_persona_instruction()
-        if system_instruction:
-            instructions_str += system_instruction
-
+    def _prepare_contents(self, contents: List[Content]) -> List[ResponseInputItemParam]:
+        """Prepare contents for OpenAI API format."""
         input_messages: List[ResponseInputItemParam] = []
         for content in contents:
             role = "assistant" if content.role == "model" else "user"
@@ -54,6 +49,13 @@ class OpenAIProvider(BaseLLMProvider):
                 "content": content.text,
             }
             input_messages.append(message)
+        return input_messages
+
+    def generate_content(
+        self, contents: List[Content], system_instruction: Optional[str] = None
+    ) -> LLMResponse:
+        input_messages = self._prepare_contents(contents)
+        instructions_str = self._build_system_instruction(system_instruction)
 
         start = get_time_ms()
         response = self.client.responses.create(
@@ -91,19 +93,8 @@ class OpenAIProvider(BaseLLMProvider):
         schema: Union[Dict[str, Any], str, Type[BaseModel]],
         system_instruction: Optional[str] = None,
     ) -> LLMResponse:
-        instructions_str = self._build_persona_instruction()
-        if system_instruction:
-            instructions_str += system_instruction
-
-        input_messages: List[ResponseInputItemParam] = []
-        for content in contents:
-            role = "assistant" if content.role == "model" else "user"
-            message: EasyInputMessageParam = {
-                "type": "message",
-                "role": cast("Literal['user', 'assistant', 'system', 'developer']", role),
-                "content": content.text,
-            }
-            input_messages.append(message)
+        input_messages = self._prepare_contents(contents)
+        instructions_str = self._build_system_instruction(system_instruction)
 
         if isinstance(schema, type) and issubclass(schema, BaseModel):
             json_schema = schema.model_json_schema()
