@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import Any, Dict, List, Optional, Type, Union
+import logging
+from typing import List, Optional, Type, TypeVar
 
 from google import genai
 from pydantic import BaseModel
 
+T = TypeVar("T", bound=BaseModel)
+
 from ..domain import (
-    Content,
     GoogleProviderConfig,
     LLMResponse,
 )
@@ -15,6 +17,7 @@ from ..protocol import (
     Event,
     LLMCallEvent,
     LLMCallEventPayload,
+    Message,
     Persona,
 )
 from ..utils import get_time_ms
@@ -30,44 +33,62 @@ class GoogleProvider(BaseLLMProvider):
     ):
         super().__init__(config, events, persona)
         self.client: genai.Client = genai.Client(api_key=self.api_key)
+        self.logger = logging.getLogger("zowie_agent.GoogleProvider")
 
-    def _prepare_contents(self, contents: List[Content]) -> List[genai.types.ContentDict]:
+    def _prepare_messages(self, messages: List[Message]) -> List[genai.types.ContentDict]:
+        """Convert Message objects to Google's ContentDict format."""
         prepared_contents: List[genai.types.ContentDict] = []
-        for content in contents:
-            prepared_contents.append({"role": content.role, "parts": [{"text": content.text}]})
+        for message in messages:
+            # Map Message.author to Google's role format
+            if message.author == "User":
+                role = "user"
+            elif message.author == "Chatbot":
+                role = "model"  # Google uses "model" for assistant responses
+            else:
+                role = "user"  # Default fallback
+
+            prepared_contents.append({"role": role, "parts": [{"text": message.content}]})
         return prepared_contents
 
     def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None
+        self, 
+        messages: List[Message], 
+        system_instruction: str, 
+        include_persona: Optional[bool] = None, 
+        agent_include_persona_default: bool = True
     ) -> LLMResponse:
-        prepared_contents = self._prepare_contents(contents)
-        instructions_str = self._build_system_instruction(system_instruction)
+        prepared_contents = self._prepare_messages(messages)
+        instructions_str = self._build_system_instruction(
+            system_instruction, include_persona, agent_include_persona_default
+        )
 
-        prepared_config = genai.types.GenerateContentConfig()
-        if instructions_str:
-            prepared_config.system_instruction = instructions_str
+        self.logger.debug(f"Making Google LLM request with model {self.model}")
+
+        prepared_config = genai.types.GenerateContentConfig(
+            system_instruction=instructions_str,
+        )
 
         start = get_time_ms()
-        response = self.client.models.generate_content(
-            model=self.model, contents=prepared_contents, config=prepared_config
-        )
-        stop = get_time_ms()
+        try:
+            response = self.client.models.generate_content(
+                model=self.model, contents=prepared_contents, config=prepared_config
+            )
+            stop = get_time_ms()
+            duration = stop - start
+            
+            self.logger.debug(
+                f"Google LLM request completed in {duration}ms with model {self.model}"
+            )
+        except Exception as e:
+            stop = get_time_ms()
+            duration = stop - start
+            self.logger.error(f"Google LLM request failed after {duration}ms: {str(e)}")
+            raise
 
         prompt_data = {
+            "messages": [msg.model_dump() for msg in messages],
             "system_instruction": instructions_str,
-            "contents": prepared_contents,
         }
-
-        self.events.append(
-            LLMCallEvent(
-                payload=LLMCallEventPayload(
-                    model=self.model,
-                    prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
-                    response=response.model_dump_json(),
-                    durationInMillis=stop - start,
-                )
-            )
-        )
 
         text = ""
         if response.candidates and len(response.candidates) > 0:
@@ -75,41 +96,54 @@ class GoogleProvider(BaseLLMProvider):
             if candidate.content and candidate.content.parts:
                 text = candidate.content.parts[0].text or ""
 
+        self.events.append(
+            LLMCallEvent(
+                payload=LLMCallEventPayload(
+                    model=self.model,
+                    prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
+                    response=text,
+                    durationInMillis=stop - start,
+                )
+            )
+        )
+
         return LLMResponse(
             text=text,
             raw_response=response,
             provider="google",
             model=self.model,
         )
-
 
     def generate_structured_content(
         self,
-        contents: List[Content],
-        schema: Union[Dict[str, Any], Type[BaseModel]],
-        system_instruction: Optional[str] = None,
-    ) -> LLMResponse:
-        prepared_contents = self._prepare_contents(contents)
-        json_schema = self._parse_schema(schema)
-        instructions_str = self._build_system_instruction(system_instruction)
-
-        prepared_config = genai.types.GenerateContentConfig(
-            response_json_schema=json_schema,
-            response_mime_type="application/json",
+        messages: List[Message],
+        schema: Type[T],
+        system_instruction: str,
+        include_persona: Optional[bool] = None,
+        agent_include_persona_default: bool = True,
+    ) -> T:
+        prepared_contents = self._prepare_messages(messages)
+        instructions_str = self._build_system_instruction(
+            system_instruction, include_persona, agent_include_persona_default
         )
-        if instructions_str:
-            prepared_config.system_instruction = instructions_str
 
+        # Use Google's native structured output with response_schema
         start = get_time_ms()
         response = self.client.models.generate_content(
-            model=self.model, contents=prepared_contents, config=prepared_config
+            model=self.model,
+            contents=prepared_contents,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": schema,
+                "system_instruction": instructions_str if instructions_str else None,
+            },
         )
         stop = get_time_ms()
 
         prompt_data = {
+            "messages": [msg.model_dump() for msg in messages],
             "system_instruction": instructions_str,
-            "response_json_schema": json_schema,
-            "contents": prepared_contents,
+            "response_schema": schema.model_json_schema(),
         }
 
         self.events.append(
@@ -117,21 +151,20 @@ class GoogleProvider(BaseLLMProvider):
                 payload=LLMCallEventPayload(
                     model=self.model,
                     prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
-                    response=response.model_dump_json(),
+                    response=libJson.dumps(
+                        response.parsed.model_dump() if isinstance(response.parsed, BaseModel)
+                        else response.parsed,
+                        indent=2,
+                        sort_keys=True,
+                        ensure_ascii=False
+                    ),
                     durationInMillis=stop - start,
                 )
             )
         )
 
-        text = ""
-        if response.candidates and len(response.candidates) > 0:
-            candidate = response.candidates[0]
-            if candidate.content and candidate.content.parts:
-                text = candidate.content.parts[0].text or ""
-
-        return LLMResponse(
-            text=text,
-            raw_response=response,
-            provider="google",
-            model=self.model,
-        )
+        # Return the instantiated model using Google's native parsing
+        parsed_result = response.parsed
+        if not isinstance(parsed_result, schema):
+            raise ValueError(f"Expected {schema.__name__} instance, got {type(parsed_result)}")
+        return parsed_result

@@ -20,6 +20,7 @@ class TestHTTPClient:
         
         assert client.events is events
         assert client.default_timeout_seconds == 10.0
+        assert client.include_headers_by_default is True
 
     def test_http_client_with_custom_timeout(self):
         """Test HTTPClient with custom timeout."""
@@ -27,6 +28,13 @@ class TestHTTPClient:
         client = HTTPClient(events=events, default_timeout_seconds=30.0)
         
         assert client.default_timeout_seconds == 30.0
+
+    def test_http_client_with_headers_disabled(self):
+        """Test HTTPClient with headers disabled by default."""
+        events = []
+        client = HTTPClient(events=events, include_headers_by_default=False)
+        
+        assert client.include_headers_by_default is False
 
     @patch('requests.request')
     def test_get_request(self, mock_request):
@@ -150,6 +158,45 @@ class TestHTTPClient:
         assert event.payload.responseStatusCode == 200
         assert event.payload.responseBody == '{"updated": true}'
         assert event.payload.requestBody == json.dumps(update_data)
+        assert event.payload.durationInMillis >= 0  # May be 0 when mocked
+
+    @patch('requests.request')
+    def test_patch_request(self, mock_request):
+        """Test PATCH request."""
+        events = []
+        client = HTTPClient(events=events)
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = '{"patched": true}'
+        mock_response.headers = {}
+        mock_request.return_value = mock_response
+        
+        patch_data = {"status": "active"}
+        response = client.patch(
+            url="https://api.example.com/patch/456",
+            json=patch_data,
+            headers={"Authorization": "Bearer token"}
+        )
+        
+        assert response == mock_response
+        mock_request.assert_called_once_with(
+            method="PATCH",
+            url="https://api.example.com/patch/456",
+            headers={"Authorization": "Bearer token"},
+            json=patch_data,
+            timeout=10.0
+        )
+        
+        # Check event with complete PATCH details
+        assert len(events) == 1
+        event = events[0]
+        assert isinstance(event, APICallEvent)
+        assert event.payload.requestMethod == "PATCH"
+        assert event.payload.url == "https://api.example.com/patch/456"
+        assert event.payload.responseStatusCode == 200
+        assert event.payload.responseBody == '{"patched": true}'
+        assert event.payload.requestBody == json.dumps(patch_data)
         assert event.payload.durationInMillis >= 0  # May be 0 when mocked
 
     @patch('requests.request')
@@ -278,3 +325,71 @@ class TestHTTPClient:
         event = events[0]
         # Duration should be recorded (greater than 0)
         assert event.payload.durationInMillis >= 0
+
+    @patch('requests.request')
+    def test_headers_included_by_default(self, mock_request):
+        """Test that headers are included in events by default."""
+        events = []
+        client = HTTPClient(events=events, include_headers_by_default=True)
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = 'OK'
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_request.return_value = mock_response
+        
+        client.get(
+            url="https://api.example.com/test",
+            headers={"Authorization": "Bearer secret-token"}
+        )
+        
+        assert len(events) == 1
+        event = events[0]
+        assert event.payload.requestHeaders == {"Authorization": "Bearer secret-token"}
+        assert event.payload.responseHeaders == {"Content-Type": "application/json"}
+
+    @patch('requests.request')
+    def test_headers_excluded_by_default(self, mock_request):
+        """Test that headers are excluded from events when disabled."""
+        events = []
+        client = HTTPClient(events=events, include_headers_by_default=False)
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = 'OK'
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_request.return_value = mock_response
+        
+        client.get(
+            url="https://api.example.com/test",
+            headers={"Authorization": "Bearer secret-token"}
+        )
+        
+        assert len(events) == 1
+        event = events[0]
+        assert event.payload.requestHeaders == {}
+        assert event.payload.responseHeaders == {}
+
+    @patch('requests.request')
+    def test_headers_override_per_call(self, mock_request):
+        """Test per-call override of header inclusion."""
+        events = []
+        client = HTTPClient(events=events, include_headers_by_default=False)
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = 'OK'
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_request.return_value = mock_response
+        
+        # Override to include headers for this specific call
+        client.get(
+            url="https://api.example.com/test",
+            headers={"Authorization": "Bearer secret-token"},
+            include_headers=True
+        )
+        
+        assert len(events) == 1
+        event = events[0]
+        assert event.payload.requestHeaders == {"Authorization": "Bearer secret-token"}
+        assert event.payload.responseHeaders == {"Content-Type": "application/json"}

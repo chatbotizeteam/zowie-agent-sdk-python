@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import secrets
 from typing import Optional
 
@@ -12,17 +13,30 @@ from .domain import APIKeyAuth, AuthConfig, BasicAuth, BearerTokenAuth
 class AuthValidator:
     def __init__(self, auth_config: Optional[AuthConfig] = None):
         self.auth_config = auth_config
+        self.logger = logging.getLogger("zowie_agent.AuthValidator")
 
     def __call__(self, request: Request) -> None:
         if self.auth_config is None:
+            self.logger.debug(f"No auth configured for {request.method} {request.url.path}")
             return
 
-        if isinstance(self.auth_config, APIKeyAuth):
-            self._verify_api_key(request)
-        elif isinstance(self.auth_config, BasicAuth):
-            self._verify_basic_auth(request)
-        elif isinstance(self.auth_config, BearerTokenAuth):
-            self._verify_bearer_token(request)
+        client_ip = request.client.host if request.client else "unknown"
+        self.logger.debug(f"Validating auth for {request.method} {request.url.path} from {client_ip}")
+
+        try:
+            if isinstance(self.auth_config, APIKeyAuth):
+                self._verify_api_key(request)
+            elif isinstance(self.auth_config, BasicAuth):
+                self._verify_basic_auth(request)
+            elif isinstance(self.auth_config, BearerTokenAuth):
+                self._verify_bearer_token(request)
+            
+            self.logger.debug(f"Authentication successful for {request.method} {request.url.path} from {client_ip}")
+        except HTTPException as e:
+            self.logger.warning(
+                f"Authentication failed for {request.method} {request.url.path} from {client_ip}: {e.detail}"
+            )
+            raise
 
     def _verify_api_key(self, request: Request) -> None:
         auth_config = self.auth_config

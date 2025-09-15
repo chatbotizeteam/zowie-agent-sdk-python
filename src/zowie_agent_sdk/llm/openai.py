@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json as libJson
-from typing import Any, Dict, List, Optional, Type, Union
+import logging
+from typing import List, Optional, Type, TypeVar
 
 import openai
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
 from ..domain import (
-    Content,
     LLMResponse,
     OpenAIProviderConfig,
 )
@@ -16,10 +16,13 @@ from ..protocol import (
     Event,
     LLMCallEvent,
     LLMCallEventPayload,
+    Message,
     Persona,
 )
 from ..utils import get_time_ms
 from .base import BaseLLMProvider
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class OpenAIProvider(BaseLLMProvider):
@@ -31,28 +34,38 @@ class OpenAIProvider(BaseLLMProvider):
     ):
         super().__init__(config, events, persona)
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
+        self.logger = logging.getLogger("zowie_agent.OpenAIProvider")
 
-    def _prepare_contents(self, contents: List[Content]) -> List[ChatCompletionMessageParam]:
-        """Prepare contents for OpenAI chat completion format."""
-        messages: List[ChatCompletionMessageParam] = []
-        for content in contents:
-            if content.role == "model":
-                messages.append({
-                    "role": "assistant",
-                    "content": content.text,
-                })
+    def _prepare_messages(self, messages: List[Message]) -> List[ChatCompletionMessageParam]:
+        """Convert Message objects to OpenAI chat completion format."""
+        openai_messages: List[ChatCompletionMessageParam] = []
+        for message in messages:
+            # Map Message.author to OpenAI's role format
+            if message.author == "User":
+                role = "user"
+            elif message.author == "Chatbot":
+                role = "assistant"  # OpenAI uses "assistant" for bot responses
             else:
-                messages.append({
-                    "role": "user", 
-                    "content": content.text,
-                })
-        return messages
+                role = "user"  # Default fallback
+
+            message_param: ChatCompletionMessageParam = {
+                "role": role,  # type: ignore
+                "content": message.content,
+            }
+            openai_messages.append(message_param)
+        return openai_messages
 
     def generate_content(
-        self, contents: List[Content], system_instruction: Optional[str] = None
+        self, 
+        messages: List[Message], 
+        system_instruction: str, 
+        include_persona: Optional[bool] = None, 
+        agent_include_persona_default: bool = True
     ) -> LLMResponse:
-        messages = self._prepare_contents(contents)
-        instructions_str = self._build_system_instruction(system_instruction)
+        openai_messages = self._prepare_messages(messages)
+        instructions_str = self._build_system_instruction(
+            system_instruction, include_persona, agent_include_persona_default
+        )
 
         # Add system message if we have instructions
         if instructions_str:
@@ -60,17 +73,30 @@ class OpenAIProvider(BaseLLMProvider):
                 "role": "system",
                 "content": instructions_str,
             }
-            messages = [system_message] + messages
+            openai_messages = [system_message] + openai_messages
+
+        self.logger.debug(f"Making OpenAI LLM request with model {self.model}")
 
         start = get_time_ms()
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-        )
-        stop = get_time_ms()
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=openai_messages,
+            )
+            stop = get_time_ms()
+            duration = stop - start
+            
+            self.logger.debug(
+                f"OpenAI LLM request completed in {duration}ms with model {self.model}"
+            )
+        except Exception as e:
+            stop = get_time_ms()
+            duration = stop - start
+            self.logger.error(f"OpenAI LLM request failed after {duration}ms: {str(e)}")
+            raise
 
         prompt_data = {
-            "messages": messages,
+            "messages": [msg.model_dump() for msg in messages],
             "system_instruction": instructions_str,
         }
 
@@ -100,12 +126,16 @@ class OpenAIProvider(BaseLLMProvider):
 
     def generate_structured_content(
         self,
-        contents: List[Content],
-        schema: Union[Dict[str, Any], Type[BaseModel]],
-        system_instruction: Optional[str] = None,
-    ) -> LLMResponse:
-        messages = self._prepare_contents(contents)
-        instructions_str = self._build_system_instruction(system_instruction)
+        messages: List[Message],
+        schema: Type[T],
+        system_instruction: str,
+        include_persona: Optional[bool] = None,
+        agent_include_persona_default: bool = True,
+    ) -> T:
+        openai_messages = self._prepare_messages(messages)
+        instructions_str = self._build_system_instruction(
+            system_instruction, include_persona, agent_include_persona_default
+        )
 
         # Add system message if we have instructions
         if instructions_str:
@@ -113,37 +143,21 @@ class OpenAIProvider(BaseLLMProvider):
                 "role": "system",
                 "content": instructions_str,
             }
-            messages = [system_message] + messages
+            openai_messages = [system_message] + openai_messages
 
-        # Use native Pydantic support when possible
-        if isinstance(schema, type) and issubclass(schema, BaseModel):
-            return self._generate_with_pydantic_native(messages, schema, instructions_str)
-        else:
-            return self._generate_with_json_schema(messages, schema, instructions_str)
-
-    def _generate_with_pydantic_native(
-        self, 
-        messages: List[ChatCompletionMessageParam], 
-        schema: Type[BaseModel], 
-        instructions_str: str
-    ) -> LLMResponse:
-        """Generate structured content using native Pydantic support."""
+        # Use OpenAI's native Pydantic support
         start = get_time_ms()
         response = self.client.chat.completions.parse(
             model=self.model,
-            messages=messages,
+            messages=openai_messages,
             response_format=schema,
         )
         stop = get_time_ms()
 
-        # Get the JSON schema for consistent event reporting
-        json_schema = self._parse_schema(schema)
-        
         prompt_data = {
-            "messages": messages,
+            "messages": [msg.model_dump() for msg in messages],
             "system_instruction": instructions_str,
-            "response_json_schema": json_schema,
-            "pydantic_model": schema.__name__,  # Indicate native Pydantic was used
+            "response_schema": schema.model_json_schema(),
         }
 
         self.events.append(
@@ -151,76 +165,21 @@ class OpenAIProvider(BaseLLMProvider):
                 payload=LLMCallEventPayload(
                     model=self.model,
                     prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
-                    response=response.model_dump_json(),
+                    response=libJson.dumps(
+                        response.choices[0].message.parsed.model_dump()
+                        if isinstance(response.choices[0].message.parsed, BaseModel)
+                        else response.choices[0].message.parsed,
+                        indent=2,
+                        sort_keys=True,
+                        ensure_ascii=False,
+                    ),
                     durationInMillis=stop - start,
                 )
             )
         )
 
-        text = ""
-        if response.choices and len(response.choices) > 0:
-            choice = response.choices[0]
-            if choice.message and choice.message.content:
-                text = choice.message.content
-
-        return LLMResponse(
-            text=text,
-            raw_response=response,
-            provider="openai",
-            model=self.model,
-        )
-
-    def _generate_with_json_schema(
-        self, 
-        messages: List[ChatCompletionMessageParam], 
-        schema: Dict[str, Any],
-        instructions_str: str
-    ) -> LLMResponse:
-        """Generate structured content using JSON schema for dict inputs."""
-        json_schema = self._parse_schema(schema)
-        schema_name = json_schema.get("title", "response_schema")
-
-        start = get_time_ms()
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": schema_name,
-                    "schema": json_schema,
-                    "strict": True,
-                }
-            }
-        )
-        stop = get_time_ms()
-
-        prompt_data = {
-            "messages": messages,
-            "system_instruction": instructions_str,
-            "response_json_schema": json_schema,
-        }
-
-        self.events.append(
-            LLMCallEvent(
-                payload=LLMCallEventPayload(
-                    model=self.model,
-                    prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
-                    response=response.model_dump_json(),
-                    durationInMillis=stop - start,
-                )
-            )
-        )
-
-        text = ""
-        if response.choices and len(response.choices) > 0:
-            choice = response.choices[0]
-            if choice.message and choice.message.content:
-                text = choice.message.content
-
-        return LLMResponse(
-            text=text,
-            raw_response=response,
-            provider="openai",
-            model=self.model,
-        )
+        # Return the instantiated model using OpenAI's native parsing
+        parsed_result = response.choices[0].message.parsed
+        if not isinstance(parsed_result, schema):
+            raise ValueError(f"Expected {schema.__name__} instance, got {type(parsed_result)}")
+        return parsed_result

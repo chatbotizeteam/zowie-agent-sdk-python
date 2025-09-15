@@ -214,3 +214,18 @@ class TestAgentClass:
         # Should raise TypeError when trying to instantiate
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             IncompleteAgent(llm_config=google_config)
+
+    def test_health_check_endpoint(self, google_config):
+        """Test health check endpoint returns correct status."""
+        agent = MockTestAgent(llm_config=google_config)
+        client = TestClient(agent.app)
+        
+        response = client.get("/health")
+        
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["status"] == "healthy"
+        assert response_data["agent"] == "MockTestAgent"
+        assert "timestamp" in response_data
+        assert isinstance(response_data["timestamp"], int)
+        assert response_data["timestamp"] > 0
