@@ -4,10 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zowie_agent_sdk import Content, GoogleProviderConfig
+from zowie_agent_sdk import GoogleProviderConfig
 from zowie_agent_sdk.domain import LLMResponse
 from zowie_agent_sdk.llm import LLM
 from zowie_agent_sdk.llm.base import BaseLLMProvider
+from zowie_agent_sdk.protocol import Message
 
 
 class TestLLMBase:
@@ -59,10 +60,10 @@ class TestLLMBase:
         events = []
         llm = LLM(config=None, events=events, persona=None)
         
-        contents = [Content(role="user", text="Hello")]
+        messages = [Message(author="User", content="Hello", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(Exception, match="LLM provider not configured"):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_generate_content_with_provider(self, mock_google_provider, google_config):
@@ -79,61 +80,65 @@ class TestLLMBase:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Hello")]
+        messages = [Message(author="User", content="Hello", timestamp="2024-01-15T10:00:00Z")]
         
-        response = llm.generate_content(contents, system_instruction="Be helpful")
+        response = llm.generate_content(messages, system_instruction="Be helpful")
         
         assert response == mock_response
         mock_provider_instance.generate_content.assert_called_once_with(
-            contents,
-            "Be helpful"
+            messages,
+            "Be helpful",
+            None,
+            True
         )
 
     def test_generate_structured_content_without_provider(self):
         """Test generate_structured_content raises exception when provider is not configured."""
+        from pydantic import BaseModel
+        
+        class TestModel(BaseModel):
+            test: str
+            
         events = []
         llm = LLM(config=None, events=events, persona=None)
         
-        contents = [Content(role="user", text="Hello")]
-        schema = {"type": "object"}
+        messages = [Message(author="User", content="Hello", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(Exception, match="LLM provider not configured"):
-            llm.generate_structured_content(contents, schema)
+            llm.generate_structured_content(messages, TestModel, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.openai.OpenAIProvider')
     def test_generate_structured_content_with_provider(self, mock_openai_provider, openai_config):
         """Test generate_structured_content delegates to provider."""
+        from pydantic import BaseModel
+        
+        class TestModel(BaseModel):
+            result: str
+            
         events = []
         mock_provider_instance = MagicMock()
-        mock_response = LLMResponse(
-            text='{"result": "structured"}',
-            raw_response={},
-            provider="openai",
-            model="gpt-4",
-        )
-        mock_provider_instance.generate_structured_content.return_value = mock_response
+        mock_instance = TestModel(result="structured")
+        mock_provider_instance.generate_structured_content.return_value = mock_instance
         mock_openai_provider.return_value = mock_provider_instance
         
         llm = LLM(config=openai_config, events=events, persona=None)
-        contents = [Content(role="user", text="Generate JSON")]
-        schema = {
-            "type": "object",
-            "properties": {
-                "result": {"type": "string"}
-            }
-        }
+        messages = [Message(author="User", content="Generate JSON", timestamp="2024-01-15T10:00:00Z")]
         
         response = llm.generate_structured_content(
-            contents,
-            schema,
+            messages,
+            TestModel,
             system_instruction="Return valid JSON"
         )
         
-        assert response == mock_response
+        assert response == mock_instance
+        assert isinstance(response, TestModel)
+        assert response.result == "structured"
         mock_provider_instance.generate_structured_content.assert_called_once_with(
-            contents,
-            schema,
-            "Return valid JSON"
+            messages,
+            TestModel,
+            "Return valid JSON",
+            None,
+            True
         )
 
     def test_persona_instruction_building(self):
@@ -142,16 +147,16 @@ class TestLLMBase:
         
         # Create a concrete implementation for testing
         class TestProvider(BaseLLMProvider):
-            def generate_content(self, contents, system_instruction=None, **kwargs):
+            def generate_content(self, messages, system_instruction=None, **kwargs):
                 return None
             
             def generate_structured_content(
-                self, contents, schema, system_instruction=None, **kwargs
+                self, messages, schema, system_instruction=None, **kwargs
             ):
                 return None
 
-            def _prepare_contents(self, contents):
-                return contents  # Simple passthrough for test
+            def _prepare_messages(self, messages):
+                return messages  # Simple passthrough for test
         
         # Test with full persona
         persona = Persona(

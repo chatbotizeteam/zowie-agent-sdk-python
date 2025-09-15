@@ -11,9 +11,8 @@ from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
+
 # Agent response types (internal)
-
-
 class ContinueConversationResponse(BaseModel):
     """Internal response to continue the conversation."""
 
@@ -88,15 +87,6 @@ AuthConfig = Annotated[Union[APIKeyAuth, BasicAuth, BearerTokenAuth], Field(disc
 
 
 # LLM interaction types
-
-
-class Content(BaseModel):
-    """Content for LLM interactions."""
-
-    text: str
-    role: Literal["model", "user"]
-
-
 class LLMResponse(BaseModel):
     """Response from LLM providers."""
 

@@ -45,11 +45,6 @@ class Persona(CamelCaseModel):
     Uses snake_case internally but serializes to/from camelCase for the API.
     """
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
-
     name: Optional[str] = None
     business_context: Optional[str] = None
     tone_of_voice: Optional[str] = None
@@ -61,21 +56,11 @@ class Persona(CamelCaseModel):
 class SendMessagePayload(CamelCaseModel):
     """Payload for send_message command."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
-
     message: str
 
 
 class SendMessageCommand(CamelCaseModel):
     """Command to send a message to the user."""
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
     type: Literal["send_message"] = "send_message"
     payload: SendMessagePayload
@@ -84,22 +69,12 @@ class SendMessageCommand(CamelCaseModel):
 class GoToNextBlockPayload(CamelCaseModel):
     """Payload for go_to_next_block command."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
-
     message: Optional[str] = None
     nextBlockReferenceKey: str
 
 
 class GoToNextBlockCommand(CamelCaseModel):
     """Command to transfer control to another block."""
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
     type: Literal["go_to_next_block"] = "go_to_next_block"
     payload: GoToNextBlockPayload
@@ -117,11 +92,6 @@ Command = Annotated[
 class LLMCallEventPayload(CamelCaseModel):
     """Payload for LLM call events."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
-
     prompt: str
     response: str
     model: str
@@ -130,11 +100,6 @@ class LLMCallEventPayload(CamelCaseModel):
 
 class LLMCallEvent(CamelCaseModel):
     """Event tracking an LLM API call."""
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
 
     type: Literal["llm_call"] = "llm_call"
     payload: LLMCallEventPayload

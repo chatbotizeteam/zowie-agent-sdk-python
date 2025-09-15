@@ -5,10 +5,9 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 import requests
 
-from zowie_agent_sdk import Content
 from zowie_agent_sdk.domain import LLMResponse
 from zowie_agent_sdk.llm import LLM
-from zowie_agent_sdk.protocol import LLMCallEvent
+from zowie_agent_sdk.protocol import LLMCallEvent, Message
 
 
 class TestLLMErrorHandling:
@@ -27,10 +26,10 @@ class TestLLMErrorHandling:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(requests.exceptions.Timeout):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_llm_api_rate_limit(self, mock_google_provider, google_config):
@@ -47,10 +46,10 @@ class TestLLMErrorHandling:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(requests.HTTPError):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.openai.OpenAIProvider')
     def test_invalid_api_key_error(self, mock_openai_provider, openai_config):
@@ -67,10 +66,10 @@ class TestLLMErrorHandling:
         mock_openai_provider.return_value = mock_provider_instance
         
         llm = LLM(config=openai_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(requests.HTTPError):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_malformed_llm_response(self, mock_google_provider, google_config):
@@ -85,10 +84,10 @@ class TestLLMErrorHandling:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(ValueError):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_network_connection_error(self, mock_google_provider, google_config):
@@ -103,34 +102,34 @@ class TestLLMErrorHandling:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(requests.ConnectionError):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.openai.OpenAIProvider')
-    def test_structured_content_json_error(self, mock_openai_provider, openai_config):
-        """Test handling of JSON parsing errors in structured content."""
+    def test_structured_content_validation_error(self, mock_openai_provider, openai_config):
+        """Test handling of validation errors in structured content."""
+        from pydantic import BaseModel, ValidationError
+        
+        class TestModel(BaseModel):
+            test: str
+            
         events = []
         mock_provider_instance = MagicMock()
         
-        # Return invalid JSON in structured response
-        mock_provider_instance.generate_structured_content.return_value = LLMResponse(
-            text="This is not valid JSON {",
-            raw_response={},
-            provider="openai",
-            model="gpt-4",
+        # Simulate a validation error during parsing
+        mock_provider_instance.generate_structured_content.side_effect = ValidationError.from_exception_data(
+            "TestModel", [{"type": "missing", "loc": ("test",), "msg": "Field required"}]
         )
         mock_openai_provider.return_value = mock_provider_instance
         
         llm = LLM(config=openai_config, events=events, persona=None)
-        contents = [Content(role="user", text="Generate JSON")]
-        schema = {"type": "object", "properties": {"test": {"type": "string"}}}
+        messages = [Message(author="User", content="Generate JSON", timestamp="2024-01-15T10:00:00Z")]
         
-        # Should return the response even if it's not valid JSON
-        # The validation is up to the caller
-        response = llm.generate_structured_content(contents, schema)
-        assert response.text == "This is not valid JSON {"
+        # Should raise the validation error
+        with pytest.raises(ValidationError):
+            llm.generate_structured_content(messages, TestModel, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_empty_response_from_llm(self, mock_google_provider, google_config):
@@ -148,9 +147,9 @@ class TestLLMErrorHandling:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
-        response = llm.generate_content(contents)
+        response = llm.generate_content(messages, "Test instruction")
         assert response.text == ""
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
@@ -179,10 +178,10 @@ class TestLLMErrorHandling:
         mock_google_provider.return_value = mock_provider_instance
         
         llm = LLM(config=google_config, events=events, persona=None)
-        contents = [Content(role="user", text="Test message")]
+        messages = [Message(author="User", content="Test message", timestamp="2024-01-15T10:00:00Z")]
         
         with pytest.raises(RuntimeError):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
         
         # Event should still be recorded
         assert len(events) == 1
@@ -205,9 +204,9 @@ class TestLLMErrorHandling:
         assert llm.provider is None
         
         # And raise error when trying to use it
-        contents = [Content(role="user", text="Test")]
+        messages = [Message(author="User", content="Test", timestamp="2024-01-15T10:00:00Z")]
         with pytest.raises(Exception, match="LLM provider not configured"):
-            llm.generate_content(contents)
+            llm.generate_content(messages, "Test instruction")
 
     @patch('zowie_agent_sdk.llm.google.GoogleProvider')
     def test_very_long_prompt_handling(self, mock_google_provider, google_config):
@@ -228,7 +227,7 @@ class TestLLMErrorHandling:
         
         # Create a very long prompt (10k+ characters)
         long_text = "This is a test. " * 1000
-        contents = [Content(role="user", text=long_text)]
+        messages = [Message(author="User", content=long_text, timestamp="2024-01-15T10:00:00Z")]
         
-        response = llm.generate_content(contents)
+        response = llm.generate_content(messages, "Test instruction")
         assert response.text == "Response to long prompt"
