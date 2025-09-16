@@ -54,12 +54,12 @@ flowchart TD
     subgraph AgentSDK [Zowie Agent SDK]
         direction LR
         FastAPI[FastAPI Application] --> AgentClass["Agent Class: handle(context)"]
-        AgentClass --> Context["Context Object \n (metadata, messages, llm, http, etc.)"]
+        AgentClass --> Context["Context Object <br/> (metadata, messages, llm, http, etc.)"]
     end
 
     subgraph ExternalServices [External Services]
         direction TB
-        LLM["LLM Providers \n (Google, OpenAI)"]
+        LLM["LLM Providers <br/> (Google, OpenAI)"]
         HTTP[Internal & External APIs]
     end
 
