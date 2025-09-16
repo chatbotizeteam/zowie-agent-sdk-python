@@ -1,39 +1,39 @@
 # Zowie Agent SDK for Python
 
-A Python framework for building external agents that integrate with **Zowie’s Decision Engine**.
+A Python framework for building external agents that integrate with [Zowie Decision Engine](https://docs.zowie.ai/docs/process-automation).
 With this SDK, you can build agents that:
 
 - Process conversations and generate natural responses
 - Connect to internal systems and private APIs
 - Use LLMs (Google Gemini, OpenAI GPT) for reasoning
 - Transfer conversations between workflow blocks
-- Get **full observability** in Zowie Supervisor (LLM calls + API calls auto-tracked)
+- Get **full observability** in [Zowie Supervisor](https://docs.zowie.ai/docs/improve#supervisor--observe--understand) (LLM calls + API calls auto-tracked)
 
 The SDK handles all communication with the Decision Engine so you can focus on your business logic.
 
 ## Table of Contents
 
-- [Architecture](https://www.google.com/search?q=%23architecture)
-- [Prerequisites](https://www.google.com/search?q=%23prerequisites)
-- [Installation](https://www.google.com/search?q=%23installation)
-- [Quick Start](https://www.google.com/search?q=%23quick-start)
-- [Configuration](https://www.google.com/search?q=%23configuration)
-  - [LLM Provider Configuration](https://www.google.com/search?q=%23llm-provider-configuration)
-  - [Authentication Configuration](https://www.google.com/search?q=%23authentication-configuration)
-- [Usage Guide and API Reference](https://www.google.com/search?q=%23usage-guide-and-api-reference)
-  - [Agent Class](https://www.google.com/search?q=%23agent-class)
-  - [Context Class](https://www.google.com/search?q=%23context-class)
-  - [Response Types](https://www.google.com/search?q=%23response-types)
-  - [LLM Client](https://www.google.com/search?q=%23llm-client)
-  - [HTTP Client](https://www.google.com/search?q=%23http-client)
-  - [Value Storage](https://www.google.com/search?q=%23value-storage)
-- [Performance and Concurrency](https://www.google.com/search?q=%23performance-and-concurrency)
-- [Event Tracking and Observability](https://www.google.com/search?q=%23event-tracking-and-observability)
-- [API Endpoints](https://www.google.com/search?q=%23api-endpoints)
-- [Request Validation](https://www.google.com/search?q=%23request-validation)
-- [Testing](https://www.google.com/search?q=%23testing)
-- [Development Setup](https://www.google.com/search?q=%23development-setup)
-- [Support and Contributing](https://www.google.com/search?q=%23support-and-contributing)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+  - [LLM Provider Configuration](#llm-provider-configuration)
+  - [Authentication Configuration](#authentication-configuration)
+- [Usage Guide and API Reference](#usage-guide-and-api-reference)
+  - [Agent Class](#agent-class)
+  - [Context Class](#context-class)
+  - [Response Types](#response-types)
+  - [LLM Client](#llm-client)
+  - [HTTP Client](#http-client)
+  - [Value Storage](#value-storage)
+- [Performance and Concurrency](#performance-and-concurrency)
+- [Event Tracking and Observability](#event-tracking-and-observability)
+- [API Endpoints](#api-endpoints)
+- [Request Validation](#request-validation)
+- [Testing](#testing)
+- [Development Setup](#development-setup)
+- [Support and Contributing](#support-and-contributing)
 
 ---
 
@@ -45,19 +45,19 @@ The SDK is built on **FastAPI**, providing an HTTP server that integrates with Z
 
 ```mermaid
 flowchart TD
-    subgraph Decision Engine
+    subgraph DecisionEngine [Decision Engine]
         DE_Core[Decision Engine Core]
     end
 
-    subgraph Your Agent [Zowie Agent SDK]
+    subgraph AgentSDK [Zowie Agent SDK]
         direction LR
         FastAPI[FastAPI Application] --> AgentClass["Agent Class: handle(context)"]
-        AgentClass --> Context["Context Object <br/>(metadata, messages, llm, http, etc.)"]
+        AgentClass --> Context["Context Object\n(metadata, messages, llm, http, etc.)"]
     end
 
-    subgraph External Services
+    subgraph ExternalServices [External Services]
         direction TB
-        LLM[LLM Providers <br/>(Google, OpenAI)]
+        LLM["LLM Providers\n(Google, OpenAI)"]
         HTTP[Internal & External APIs]
     end
 
@@ -76,7 +76,6 @@ flowchart TD
 - **HTTP Client**: Automatic request/response logging for private APIs and external services.
 - **Authentication**: Multiple authentication methods for securing your agent endpoints.
 - **Event Tracking**: All LLM calls and HTTP requests automatically logged and available in Supervisor.
-- **Internal System Access**: Connect to databases, private APIs, legacy systems - HTTP requests are automatically tracked for observability.
 
 ---
 
@@ -132,7 +131,6 @@ The SDK requires Python 3.9+ and includes the following core dependencies:
 Create a simple agent that responds to user messages using an LLM.
 
 ```python
-# example.py
 import os
 from zowie_agent_sdk import (
     Agent,
@@ -308,6 +306,44 @@ agent = MyAgent(
 
 ## Usage Guide and API Reference
 
+### Naming Conventions: `snake_case` vs. `camelCase`
+
+A key convention to be aware of is that the Python SDK exclusively uses **`snake_case`** for all object attributes, following Python's standard (PEP 8). However, the underlying JSON API that communicates with Zowie's Decision Engine uses **`camelCase`** for all JSON keys.
+
+**The SDK handles this transformation for you automatically.** You will never need to write `camelCase` in your Python code.
+
+This means when you create a response object in Python, the SDK will automatically convert its attributes to `camelCase` before sending it as a JSON payload.
+
+**Example:**
+
+In your Python agent, you use `snake_case`:
+
+```python
+# In your Python code, you use snake_case
+return TransferToBlockResponse(
+    next_block="human-handoff-block-key",
+    message="Let me get a human for you."
+)
+```
+
+The SDK converts this into the following JSON with `camelCase` keys:
+
+```json
+// The resulting JSON sent over the wire uses camelCase
+{
+  "command": {
+    "type": "transfer_to_block",
+    "payload": {
+      "nextBlock": "human-handoff-block-key",
+      "message": "Let me get a human for you."
+    }
+  },
+  ...
+}
+```
+
+You only need to remember this convention when comparing your Python objects to the raw JSON examples in the API documentation or when debugging network requests.
+
 ### Agent Class
 
 The `Agent` class is the base for all agents. Inherit from this class and implement the `handle` method.
@@ -332,6 +368,16 @@ class MyAgent(Agent):
 
 ### Context Class
 
+You've made an excellent point. That is a critical piece of information for a developer using the `Context` object, and it was present in the original but lost in the rework. Defining those data structures is essential for clarity.
+
+My apologies for missing that. Let's add it back in. The best place for these definitions is directly under the `Context Class` section, as they are components of the context.
+
+Here is the updated section for the `README.md`. You can replace the entire `### Context Class` section with the following block.
+
+---
+
+### Context Class
+
 The `Context` object provides access to all request data and pre-configured clients.
 
 - `metadata: Metadata`: Request metadata (IDs, timestamps).
@@ -341,6 +387,49 @@ The `Context` object provides access to all request data and pre-configured clie
 - `llm: LLM`: LLM client with automatic context injection and event tracking.
 - `http: HTTPClient`: HTTP client with automatic event tracking.
 - `store_value: Callable[[str, Any], None]`: Function to store values in the Decision Engine.
+
+The primary data objects within the `Context` have the following structure:
+
+#### Metadata
+
+Contains identifiers for the current request and conversation.
+
+```python
+from typing import Optional
+
+class Metadata:
+    requestId: str
+    chatbotId: str
+    conversationId: str
+    interactionId: Optional[str]
+```
+
+#### Message
+
+Represents a single message in the conversation history.
+
+```python
+from typing import Literal
+from datetime import datetime
+
+class Message:
+    author: Literal["User", "Chatbot"]
+    content: str
+    timestamp: datetime
+```
+
+#### Persona
+
+Describes the AI's personality, context, and tone, as configured in Zowie.
+
+```python
+from typing import Optional
+
+class Persona:
+    name: Optional[str]
+    business_context: Optional[str]
+    tone_of_voice: Optional[str]
+```
 
 ### Response Types
 
@@ -517,16 +606,119 @@ The SDK automatically tracks all `context.http` and `context.llm` calls as event
 
 ---
 
+You've found another great point of improvement. The documentation should absolutely show examples for **all possible valid responses**, not just one. The current example only covers the `ContinueConversationResponse` and completely misses the `TransferToBlockResponse`.
+
+This is a crucial detail for anyone building an agent. I'll update the `API Endpoints` section to include examples for both response types.
+
+You can replace the entire `## API Endpoints` section in your `README.md` with this more complete version.
+
+---
+
 ## API Endpoints
 
 Your agent server exposes the following HTTP endpoints.
 
 ### `POST /`
 
-The main endpoint for processing conversation requests from the Zowie Decision Engine.
+This is the main endpoint for processing conversation requests from the Zowie Decision Engine.
 
-- **Request Body**: A JSON object containing `metadata`, `messages`, `context`, and optional `persona`.
-- **Response Body**: A JSON object containing the `command` to execute, `valuesToSave`, and a list of `events`.
+---
+
+#### Request Body
+
+The incoming request from Zowie will have the following JSON structure.
+
+```json
+{
+  "metadata": {
+    "requestId": "unique-request-id",
+    "chatbotId": "chatbot-identifier",
+    "conversationId": "conversation-identifier",
+    "interactionId": "optional-interaction-id"
+  },
+  "messages": [
+    {
+      "author": "User",
+      "content": "What documents do I need to submit?",
+      "timestamp": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "context": "Optional context string from the Zowie automation.",
+  "persona": {
+    "name": "Document Expert",
+    "businessContext": "This agent specializes in document verification.",
+    "toneOfVoice": "Professional and helpful."
+  }
+}
+```
+
+---
+
+#### Response Bodies
+
+Your agent must return one of the two following JSON structures, corresponding to the response type you choose.
+
+##### For `ContinueConversationResponse`
+
+This response sends a message back to the user and continues the conversation in the current block.
+
+```json
+{
+  "command": {
+    "type": "send_message",
+    "payload": {
+      "message": "For verification, you'll need a government-issued ID and proof of residence. Would you like specific details about acceptable document types?"
+    }
+  },
+  "valuesToSave": {
+    "interaction_type": "document_inquiry",
+    "timestamp": "2025-09-17T01:34:40Z"
+  },
+  "events": [
+    {
+      "type": "llm_call",
+      "payload": {
+        "model": "gemini-1.5-flash",
+        "prompt": "...",
+        "response": "For verification, you'll need...",
+        "durationInMillis": 1200
+      }
+    }
+  ]
+}
+```
+
+##### For `TransferToBlockResponse`
+
+This response transfers the conversation to a different block in your Zowie automation flow. You can optionally send a final message before the transfer occurs.
+
+```json
+{
+  "command": {
+    "type": "transfer_to_block",
+    "payload": {
+      "message": "One moment, I'll get someone from our support team to help with that.",
+      "nextBlock": "human-handoff-block-key"
+    }
+  },
+  "valuesToSave": {
+    "transfer_reason": "out_of_scope_question"
+  },
+  "events": [
+    {
+      "type": "llm_call",
+      "payload": {
+        "model": "gemini-1.5-flash",
+        "prompt": "...",
+        "response": "...",
+        "durationInMillis": 950
+      }
+    }
+  ]
+}
+```
+
+---
 
 ### `GET /health`
 
@@ -538,7 +730,9 @@ A simple health check endpoint for monitoring.
 
 ## Request Validation
 
-All incoming requests to the `POST /` endpoint are automatically validated against a Pydantic model. Invalid requests will receive an HTTP 422 Unprocessable Entity response with detailed validation errors. The validation is forward-compatible, meaning new fields added by Zowie in the future will be ignored and won't break your agent.
+All incoming requests to the `POST /` endpoint are automatically validated against a Pydantic model. Invalid requests will receive an HTTP 422 Unprocessable Entity response with detailed validation errors.
+
+The validation is forward-compatible, meaning new fields added by Zowie in the future will be ignored and won't break your agent.
 
 ---
 
@@ -592,7 +786,7 @@ For contributors working on the SDK itself:
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/chatbotizeteam/zowie-agent-sdk-python/
 cd zowie-agent-sdk-python
 
 # Install dependencies and set up pre-commit hooks
