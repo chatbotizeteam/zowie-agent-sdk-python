@@ -39,7 +39,7 @@ The SDK handles all communication with the Decision Engine so you can focus on y
 
 ## Architecture
 
-The SDK is built on **FastAPI**, providing an HTTP server that integrates with Zowie's Decision Engine. Your agents receive conversation requests, process them using LLMs and external APIs, then return responses to either continue the conversation or transfer control to other workflow blocks.
+The SDK is built on **FastAPI**, providing an HTTP server that integrates with Zowie's Decision Engine. Your agents receive conversation requests and fulfill them by connecting to LLMs for language understanding and external APIs to gather live data or execute tasks, then return responses.
 
 ### System Architecture Diagram
 
