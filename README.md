@@ -165,48 +165,97 @@ poetry uvicorn example:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
 ### Running in Production
 
-For production deployment, use multiple workers and disable reload:
+For production deployment, disable reload and use multiple workers (if necessary):
 
 ```bash
 poetry uvicorn example:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 ```
 
+## Performance and Concurrency
+
+### Synchronous Design
+
+The SDK uses **synchronous handlers** for simplicity - no need to manage `async`/`await` patterns in your agent logic. This makes it easier to integrate with existing libraries, debug issues, and write readable code.
+
+```python
+def handle(self, context: Context) -> AgentResponse:
+    # Simple sync code - no async complexity
+    data = context.http.get(url, headers)
+    response = context.llm.generate_content(messages=context.messages)
+    return ContinueConversationResponse(message=response)
+```
+
+### Concurrency Limits
+
+**Default**: 40 concurrent requests per worker (FastAPI/Starlette uses AnyIO thread limiter)
+
+For most agent workloads (conversation-based, human-paced), this default is sufficient since agents typically process one conversation at a time.
+
+### Scaling Options
+
+**Horizontal scaling** (recommended): Use multiple Uvicorn workers
+
+```bash
+# Single worker (development)
+poetry run uvicorn example:app --reload
+
+# Production with 4 workers = 160 concurrent requests
+poetry run uvicorn example:app --workers 4 --host 0.0.0.0 --port 8000
+
+# High-traffic deployment
+poetry run uvicorn example:app --workers 8 --host 0.0.0.0 --port 8000
+```
+
+**When to scale**: Consider multiple workers if you expect sustained high request volumes or have many simultaneous conversations.
+
 ## Configuration
 
 ### LLM Provider Configuration
 
+Configure the LLM provider using `LLMConfig`, which accepts either Google or OpenAI configurations:
+
 #### Google Gemini
 
 ```python
-from zowie_agent_sdk import GoogleProviderConfig
+from zowie_agent_sdk import GoogleProviderConfig, LLMConfig
 
-llm_config = GoogleProviderConfig(
+llm_config: LLMConfig = GoogleProviderConfig(
     api_key=os.getenv("GOOGLE_API_KEY", ""),
-    model="gemini-2.5-flash"
+    model="gemini-2.5-flash"  # or "gemini-1.5-pro", "gemini-1.5-flash"
 )
 ```
+
+**GoogleProviderConfig Parameters:**
+
+- **api_key** (`str`): Google AI API key from Google AI Studio
+- **model** (`str`): Model name (e.g., "gemini-2.5-flash", "gemini-1.5-pro")
 
 #### OpenAI GPT
 
 ```python
-from zowie_agent_sdk import OpenAIProviderConfig
+from zowie_agent_sdk import OpenAIProviderConfig, LLMConfig
 
-llm_config = OpenAIProviderConfig(
+llm_config: LLMConfig = OpenAIProviderConfig(
     api_key=os.getenv("OPENAI_API_KEY", ""),
-    model="gpt-5-mini"
+    model="gpt-4o-mini"  # or "gpt-4", "gpt-4o", "gpt-3.5-turbo"
 )
 ```
 
+**OpenAIProviderConfig Parameters:**
+
+- **api_key** (`str`): OpenAI API key from OpenAI platform
+- **model** (`str`): Model name (e.g., "gpt-4o-mini", "gpt-4", "gpt-4o")
+
 ### Authentication Configuration
 
-The authentication strategy configured in your agent must match the authentication settings in your Zowie External Agent Block configuration. The SDK will verify the authentication headers sent from Zowie's Decision Engine.
+Configure authentication using `AuthConfig`, which accepts API key, basic auth, or bearer token configurations. The authentication strategy must match your Zowie External Agent Block configuration.
 
 #### API Key Authentication
 
 ```python
-from zowie_agent_sdk import APIKeyAuth
+from zowie_agent_sdk import APIKeyAuth, AuthConfig
 
-auth_config = APIKeyAuth(
+auth_config: AuthConfig = APIKeyAuth(
     header_name="X-API-Key",
     api_key=os.getenv("AGENT_API_KEY", "")
 )
@@ -217,23 +266,49 @@ agent = CustomerSupportAgent(
 )
 ```
 
+**APIKeyAuth Parameters:**
+
+- **header_name** (`str`): Name of the HTTP header containing the API key
+- **api_key** (`str`): The expected API key value
+
 #### Basic Authentication
 
 ```python
-from zowie_agent_sdk import BasicAuth
+from zowie_agent_sdk import BasicAuth, AuthConfig
 
-auth_config = BasicAuth(
+auth_config: AuthConfig = BasicAuth(
     username=os.getenv("AGENT_USERNAME", "admin"),
     password=os.getenv("AGENT_PASSWORD", "")
 )
 ```
 
+**BasicAuth Parameters:**
+
+- **username** (`str`): Expected username for HTTP Basic Auth
+- **password** (`str`): Expected password for HTTP Basic Auth
+
 #### Bearer Token Authentication
 
 ```python
-from zowie_agent_sdk import BearerTokenAuth
+from zowie_agent_sdk import BearerTokenAuth, AuthConfig
 
-auth_config = BearerTokenAuth(token=os.getenv("AGENT_BEARER_TOKEN", ""))
+auth_config: AuthConfig = BearerTokenAuth(
+    token=os.getenv("AGENT_BEARER_TOKEN", "")
+)
+```
+
+**BearerTokenAuth Parameters:**
+
+- **token** (`str`): Expected bearer token value
+
+#### No Authentication
+
+```python
+# Authentication is optional - use None for no authentication
+agent = CustomerSupportAgent(
+    llm_config=llm_config,
+    auth_config=None  # No authentication required
+)
 ```
 
 ### Agent Configuration Parameters
@@ -362,13 +437,20 @@ return TransferToBlockResponse(
 response = context.llm.generate_content(
     messages=context.messages,
     system_instruction="Custom system prompt",
-    include_persona=None,    # Use default setting
-    include_context=None     # Use default setting
+    include_persona=None,    # Override default persona inclusion (None = use agent default)
+    include_context=None     # Override default context inclusion (None = use agent default)
 )
 
 # Access the generated text
 generated_text = response
 ```
+
+**Parameters:**
+
+- **messages** (`List[Message]`): Conversation messages to process
+- **system_instruction** (`Optional[str]`): Custom system prompt (default: None)
+- **include_persona** (`Optional[bool]`): Override agent's default persona inclusion setting
+- **include_context** (`Optional[bool]`): Override agent's default context inclusion setting
 
 #### Structured Content Generation
 
@@ -392,13 +474,23 @@ class UserIntent(BaseModel):
 structured_response = context.llm.generate_structured_content(
     messages=context.messages,
     schema=UserIntent,
-    system_instruction="Analyze the user's intent and extract entities"
+    system_instruction="Analyze the user's intent and extract entities",
+    include_persona=None,    # Override default persona inclusion (None = use agent default)
+    include_context=None     # Override default context inclusion (None = use agent default)
 )
 
 # Access structured data
 print(f"Intent: {structured_response.intent}")
 print(f"Confidence: {structured_response.confidence}")
 ```
+
+**Parameters:**
+
+- **messages** (`List[Message]`): Conversation messages to process
+- **schema** (`Type[BaseModel]`): Pydantic model class for structured output
+- **system_instruction** (`Optional[str]`): Custom system prompt (default: None)
+- **include_persona** (`Optional[bool]`): Override agent's default persona inclusion setting
+- **include_context** (`Optional[bool]`): Override agent's default context inclusion setting
 
 **Pydantic Model with Field Validation:**
 
