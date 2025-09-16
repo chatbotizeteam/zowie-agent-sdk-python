@@ -23,6 +23,9 @@ pytest-cov = "^7.0.0"
 httpx = "^0.28.1"
 pre-commit = "^3.6.0"
 
+[tool.poetry.scripts]
+setup-dev = "scripts.setup:main"
+
 [tool.poetry]
 packages = [{include = "zowie_agent_sdk", from = "src"}]
 

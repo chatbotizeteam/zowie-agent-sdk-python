@@ -77,6 +77,36 @@ pip install zowie-agent-sdk
 poetry add zowie-agent-sdk
 ```
 
+## Development Setup
+
+For contributors, set up the development environment:
+
+```bash
+# Clone repository
+git clone <repo-url>
+cd zowie-agent-sdk-python
+
+# Option 1: Use Makefile (recommended)
+make setup
+
+# Option 2: Use Poetry script
+poetry install
+poetry run setup-dev
+
+# Option 3: Manual setup
+poetry install
+poetry run pre-commit install
+```
+
+**Available development commands:**
+```bash
+make test        # Run tests
+make lint        # Check code style
+make format      # Format code
+make typecheck   # Run type checking
+make check       # Run all quality checks
+```
+
 ### Using uv
 
 ```bash

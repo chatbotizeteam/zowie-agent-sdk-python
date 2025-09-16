@@ -5,7 +5,11 @@ import logging
 from typing import List, Optional, Type, TypeVar
 
 import openai
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
 from pydantic import BaseModel
 
 from ..domain import OpenAIProviderConfig
@@ -43,18 +47,24 @@ class OpenAIProvider(BaseLLMProvider):
         """Convert Message objects to OpenAI chat completion format."""
         openai_messages: List[ChatCompletionMessageParam] = []
         for message in messages:
-            # Map Message.author to OpenAI's role format
+            # Map Message.author to OpenAI's role format and create properly typed messages
             if message.author == "User":
-                role = "user"
+                message_param: ChatCompletionMessageParam = ChatCompletionUserMessageParam(
+                    role="user",
+                    content=message.content,
+                )
             elif message.author == "Chatbot":
-                role = "assistant"  # OpenAI uses "assistant" for bot responses
+                message_param = ChatCompletionAssistantMessageParam(
+                    role="assistant",
+                    content=message.content,
+                )
             else:
-                role = "user"  # Default fallback
+                # Default fallback to user
+                message_param = ChatCompletionUserMessageParam(
+                    role="user",
+                    content=message.content,
+                )
 
-            message_param: ChatCompletionMessageParam = {
-                "role": role,  # pyright: ignore
-                "content": message.content,
-            }
             openai_messages.append(message_param)
         return openai_messages
 
