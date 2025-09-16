@@ -43,7 +43,7 @@ class BaseLLMProvider(ABC):
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> LLMResponse:
         pass
@@ -57,7 +57,7 @@ class BaseLLMProvider(ABC):
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> T:
         pass
@@ -73,7 +73,7 @@ class BaseLLMProvider(ABC):
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
     ) -> str:
         """Build system instruction combining persona, instructions, and context.
 
@@ -82,7 +82,7 @@ class BaseLLMProvider(ABC):
             include_persona: Override for persona inclusion (None = use default)
             include_context: Override for context inclusion (None = use default)
             persona: Request-specific persona (overrides instance persona)
-            context_data: Request-specific context (overrides instance context)
+            context: Request-specific context (overrides instance context)
         """
         should_include_persona = (
             include_persona if include_persona is not None else self.include_persona_default
@@ -92,7 +92,7 @@ class BaseLLMProvider(ABC):
         )
 
         effective_persona = persona
-        effective_context = context_data
+        effective_context = context
 
         instructions_str = ""
 
@@ -171,7 +171,7 @@ class LLM:
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> LLMResponse:
         if self.provider is None:
@@ -182,7 +182,7 @@ class LLM:
             include_persona=include_persona,
             include_context=include_context,
             persona=persona,
-            context_data=context_data,
+            context=context,
             events=events,
         )
 
@@ -194,7 +194,7 @@ class LLM:
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> T:
         if self.provider is None:
@@ -206,6 +206,6 @@ class LLM:
             include_persona=include_persona,
             include_context=include_context,
             persona=persona,
-            context_data=context_data,
+            context=context,
             events=events,
         )

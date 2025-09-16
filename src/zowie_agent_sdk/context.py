@@ -23,11 +23,10 @@ class Context:
 
     metadata: Metadata
     messages: List[Message]
-    context: Optional[str]
     store_value: Callable[[str, Any], None]
     http: "ContextualHTTPClient"
     persona: Optional[Persona]
-    context_data: Optional[str]
+    context: Optional[str]
     events: List[Event]
     _base_llm: LLM
     _base_http: HTTPClient
@@ -36,12 +35,11 @@ class Context:
         self,
         metadata: Metadata,
         messages: List[Message],
-        context: Optional[str],
         store_value: Callable[[str, Any], None],
         llm: LLM,
         http: HTTPClient,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> None:
         self.metadata = metadata
@@ -51,14 +49,14 @@ class Context:
         self._base_llm = llm
         self._base_http = http
         self.persona = persona
-        self.context_data = context_data
+        self.context = context
         self.events = events if events is not None else []
         self.http = ContextualHTTPClient(self._base_http, self.events)
 
     @property
     def llm(self) -> "ContextualLLM":
         """LLM instance that automatically includes persona and context."""
-        return ContextualLLM(self._base_llm, self.persona, self.context_data, self.events)
+        return ContextualLLM(self._base_llm, self.persona, self.context, self.events)
 
 
 class ContextualLLM:
@@ -68,12 +66,12 @@ class ContextualLLM:
         self,
         base_llm: LLM,
         persona: Optional[Persona],
-        context_data: Optional[str],
+        context: Optional[str],
         events: List[Event],
     ):
         self._base_llm = base_llm
         self._persona = persona
-        self._context_data = context_data
+        self._context = context
         self._events = events
 
     def generate_content(
@@ -89,7 +87,7 @@ class ContextualLLM:
             include_persona=include_persona,
             include_context=include_context,
             persona=self._persona,
-            context_data=self._context_data,
+            context=self._context,
             events=self._events,
         )
 
@@ -108,7 +106,7 @@ class ContextualLLM:
             include_persona=include_persona,
             include_context=include_context,
             persona=self._persona,
-            context_data=self._context_data,
+            context=self._context,
             events=self._events,
         )
 

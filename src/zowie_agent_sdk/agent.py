@@ -138,12 +138,11 @@ class Agent(ABC):
                 context = Context(
                     metadata=request.metadata,
                     messages=request.messages,
-                    context=request.context,
                     store_value=storeValue,
                     llm=self._base_llm,
                     http=self._base_http_client,
                     persona=request.persona,
-                    context_data=request.context,
+                    context=request.context,
                     events=events,
                 )
 

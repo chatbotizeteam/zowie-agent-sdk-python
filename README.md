@@ -1,39 +1,62 @@
 # Zowie Agent SDK for Python
 
-A Python framework for building external agents that integrate with Zowie's Decision Engine. Build agents that can process conversations, make HTTP API calls, use large language models, and transfer conversations between process blocks.
+A Python framework for building external agents that integrate with Zowie's Decision Engine. Build agents that can process conversations, connect to internal databases, call private APIs, use large language models, and transfer conversations between process blocks. The SDK handles all communication with the Decision Engine and automatically tracks HTTP requests and LLM calls for observability in Supervisor.
 
 ## Architecture
 
-The SDK is built on **FastAPI**, providing an HTTP server with automatic request validation and structured response handling. Agents receive HTTP POST requests from Zowie's Decision Engine, process them using configurable LLM providers and external APIs, and return responses to control conversation flow.
+The SDK is built on **FastAPI**, providing an HTTP server with automatic request validation and structured response handling. Agents receive HTTP POST requests from Zowie's Decision Engine, process them using configurable LLM providers, database connections, private APIs, and external services, then return responses to control conversation flow. All LLM calls and HTTP requests are automatically tracked and made available in Supervisor for observability.
+
+### System Architecture Diagram
 
 ```
-┌─────────────────┐    HTTP POST     ┌──────────────────┐
-│                 │        /         │                  │
-│ Decision Engine │ ──────────────►  │   Your Agent     │
-│                 │                  │   (FastAPI)      │
-│                 │ ◄────────────────│                  │
-└─────────────────┘    JSON Response └──────────────────┘
-                                               │
-                         ┌─────────────────────┼─────────────────────┐
-                         │                     │                     │
-                         ▼                     ▼                     ▼
-               ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-               │                 │   │                 │   │                 │
-               │  LLM Providers  │   │  HTTP Client    │   │  Authentication │
-               │  (OpenAI,       │   │  (External      │   │  (API Key,      │
-               │   Google)       │   │   APIs)         │   │   Basic, etc.)  │
-               │                 │   │                 │   │                 │
-               └─────────────────┘   └─────────────────┘   └─────────────────┘
+┌─────────────────────────────┐          ┌──────────────────────────────────────┐
+│    Decision Engine          │          │        Zowie Agent SDK               │
+│                             │          │            (Your Agent)              │
+├─────────────────────────────┤          ├──────────────────────────────────────┤
+│                             │ Request  │                                      │
+│                             │ ──────►  │  FastAPI Application                 │
+│                             │          │  ┌─────────────────────────────────┐ │
+│                             │          │  │          Agent Class            │ │
+│                             │          │  │                                 │ │
+│                             │          │  │  handle(context) -> Response    │ │
+│                             │ Response │  └─────────────────────────────────┘ │
+│                             │ ◄──────  │                                      │
+│                             │          │  ┌─────────────────────────────────┐ │
+│                             │          │  │         Context Object          │ │
+│                             │          │  │                                 │ │
+│                             │          │  │  • metadata: Request Metadata   │ │
+│                             │          │  │  • messages: Conversation       │ │
+│                             │          │  │  • persona: AI Agent Persona    │ │
+│                             │          │  │  • context: Additional context  │ │
+│                             │          │  │  • llm: LLM Client              │ │
+│                             │          │  │  • http: HTTP Client            │ │
+│                             │          │  │  • store_value: State Storage   │ │
+│                             │          │  │  • events: Supervisor Events    │ │
+│                             │          │  └─────────────────────────────────┘ │
+└─────────────────────────────┘          └──────────────────────────────────────┘
+                                                           │
+                                                           │
+                ┌──────────────────────────────────────────┼──────────────────────────────────────────┐
+                │                                          │                                          │
+                ▼                                          ▼                                          ▼
+    ┌─────────────────────┐                   ┌─────────────────────┐                   ┌──────────────────────┐
+    │   LLM Client        │                   │   HTTP Client       │                   │   Authentication     │
+    │  • Google Gemini    │                   │  • Internal Systems │                   │  • API Key Auth      │
+    │  • OpenAI           │                   │  • External APIs    │                   │  • Bearer Token      │
+    │  • Event Logging    │                   │  • Event Logging    │                   │  • Basic Auth        │
+    │                     │                   │                     │                   │                      │
+    └─────────────────────┘                   └─────────────────────┘                   └──────────────────────┘
 ```
 
 ### Core Components
 
-- **Agent Base Class**: Abstract base class defining the agent interface
+- **Agent Base Class**: Abstract base class defining the agent interface - implement your business logic here
 - **Context Management**: Request context with conversation history, metadata, and pre-configured clients
-- **LLM Integration**: Multi-provider support for Google Gemini and OpenAI GPT models
-- **HTTP Client**: Automatic request/response logging with configurable timeouts
-- **Authentication**: Multiple authentication methods with secure credential handling
-- **Event Tracking**: Comprehensive logging of API calls and LLM interactions for observability
+- **LLM Integration**: Multi-provider support for Google Gemini and OpenAI GPT models with automatic event tracking
+- **HTTP Client**: Automatic request/response logging for private APIs and external services
+- **Authentication**: Multiple authentication methods for securing your agent endpoints
+- **Event Tracking**: All LLM calls and HTTP requests automatically logged and available in Supervisor
+- **Internal System Access**: Connect to databases, private APIs, legacy systems - HTTP requests are automatically tracked for observability
 
 ## Installation
 
@@ -79,14 +102,14 @@ The repository includes a complete example (`example.py`) demonstrating a **Docu
 - **Specialized Expertise**: Agent only handles document verification questions
 - **Scope Detection**: Uses structured analysis to determine if queries are within its domain
 - **Transfer Capability**: Automatically transfers out-of-scope questions to general support
-- **Internal System Integration**: Demonstrates connecting to internal APIs that cannot be exposed publicly
+- **Internal System Integration**: Demonstrates connecting to internal APIs and private systems that cannot be exposed publicly
 - **Natural Responses**: Returns conversational answers to end users
 
 **Key Features Demonstrated:**
 
 - `generate_structured_content()` for intent analysis
 - `TransferToBlockResponse` for seamless handoffs
-- `context.http` for internal API calls with automatic logging
+- `context.http` for internal API calls with automatic logging and Supervisor visibility
 - Expert system pattern for specialized business logic
 
 **Example interactions:**
@@ -218,7 +241,7 @@ auth_config = BearerTokenAuth(token=os.getenv("AGENT_BEARER_TOKEN", ""))
 ```python
 agent = MyAgent(
     llm_config=llm_config,
-    http_timeout_seconds=30.0,                      # Default HTTP timeout
+    http_timeout_seconds=10.0,                      # Default HTTP timeout
     auth_config=auth_config,                        # Authentication (optional)
     include_persona_by_default=True,                # Include persona in LLM calls
     include_context_by_default=True,                # Include context in LLM calls
@@ -273,7 +296,7 @@ class Context:
     persona: Optional[Persona]      # Chatbot persona information
     llm: LLM                       # LLM client with automatic context injection
     http: HTTPClient               # HTTP client with automatic event tracking
-    store_value: Callable[[str, Any], None]  # Function to store values
+    store_value: Callable[[str, Any], None]  # Function to store values in Decision Engine
 ```
 
 #### Metadata Fields
@@ -299,7 +322,7 @@ class Message:
 
 ```python
 class Persona:
-    name: Optional[str]              # Chatbot name
+    name: Optional[str]              # AI Agent name
     business_context: Optional[str]  # Business context description
     tone_of_voice: Optional[str]     # Tone and style guidelines
 ```
@@ -406,22 +429,22 @@ analysis = context.llm.generate_structured_content(
 
 ### HTTP Client
 
-The HTTP client provides automatic event tracking for all requests:
+The HTTP client provides automatic event tracking for all HTTP requests to private APIs, legacy systems, and external services. All requests are logged and made available in Supervisor for observability:
 
 ```python
-# GET request
+# GET request to document verification system
 response = context.http.get(
-    url="https://api.example.com/orders/123",
-    headers={"Authorization": f"Bearer {os.getenv('API_TOKEN', '')}"},
-    timeout_seconds=30,
+    url="https://internal-docs.company.com/verify/passport/ABC123",
+    headers={"Authorization": f"Bearer {os.getenv('DOC_SYSTEM_TOKEN', '')}"},
+    timeout_seconds=5,
     include_headers=True
 )
 
-# POST request
+# POST request to fraud detection service
 response = context.http.post(
-    url="https://api.example.com/orders",
-    json={"customer_id": "12345", "product": "widget"},
-    headers={"Content-Type": "application/json"}
+    url="https://fraud-detection.internal/analyze",
+    json={"user_id": "12345", "transaction_data": {...}},
+    headers={"Content-Type": "application/json", "X-API-Key": os.getenv('FRAUD_API_KEY', '')}
 )
 
 # Other HTTP methods
@@ -447,11 +470,11 @@ All HTTP methods support these parameters:
 
 ### Value Storage
 
-Store key-value pairs that persist beyond the current request:
+Store key-value pairs within the conversation context that can be accessed in the Decision Engine:
 
 ```python
 def handle(self, context: Context) -> AgentResponse:
-    # Store values for later use
+    # Store values for the current conversation context
     context.store_value("user_preference", "email_notifications")
     context.store_value("last_interaction", "2024-01-15T10:30:00Z")
     context.store_value("order_history", [{"id": "123", "status": "shipped"}])
@@ -461,25 +484,25 @@ def handle(self, context: Context) -> AgentResponse:
 
 ## Event Tracking and Observability
 
-The SDK automatically tracks all HTTP requests and LLM calls as events. These events are included in agent responses and can be viewed in Supervisor.
+The SDK automatically tracks all HTTP requests (to private APIs, legacy systems, and external services) and LLM calls as events. These events are included in agent responses and can be viewed in Supervisor for complete observability into your agent's behavior.
 
 ### Event Types
 
 #### API Call Events
 
-All HTTP requests made through `context.http` are automatically logged:
+All HTTP requests made through `context.http` (private APIs, legacy systems, external services) are automatically logged and available in Supervisor:
 
 ```json
 {
   "type": "api_call",
   "payload": {
-    "url": "https://api.example.com/orders/123",
+    "url": "https://internal-docs.company.com/verify/passport/ABC123",
     "requestMethod": "GET",
     "requestHeaders": { "Authorization": "Bearer ***" },
     "requestBody": null,
     "responseStatusCode": 200,
     "responseHeaders": { "Content-Type": "application/json" },
-    "responseBody": "{\"status\": \"shipped\"}",
+    "responseBody": "{\"status\": \"verified\", \"issues\": []}",
     "durationInMillis": 245
   }
 }
@@ -494,8 +517,8 @@ All LLM interactions are automatically tracked:
   "type": "llm_call",
   "payload": {
     "model": "gemini-2.5-flash",
-    "prompt": "{\n  \"messages\": [\n    {\n      \"author\": \"User\",\n      \"content\": \"What's my order status?\",\n      \"timestamp\": \"2024-01-15T10:30:00.000Z\"\n    }\n  ],\n  \"system_instruction\": \"You are a helpful assistant.\"\n}",
-    "response": "I'd be happy to help you check your order status! Could you please provide your order number?",
+    "prompt": "{\n  \"messages\": [\n    {\n      \"author\": \"User\",\n      \"content\": \"What documents do I need for verification?\",\n      \"timestamp\": \"2024-01-15T10:30:00.000Z\"\n    }\n  ],\n  \"system_instruction\": \"You are a document verification expert.\"\n}",
+    "response": "For account verification, you'll need to provide a government-issued ID and proof of residence.",
     "durationInMillis": 1200
   }
 }
@@ -509,7 +532,6 @@ Control event detail level through agent configuration:
 agent = MyAgent(
     llm_config=llm_config,
     include_http_headers_by_default=False,  # Exclude headers for security
-    log_level="WARNING"                     # Reduce log verbosity
 )
 ```
 
@@ -518,8 +540,8 @@ Override per request:
 ```python
 # Exclude headers for sensitive requests
 response = context.http.get(
-    url="https://api.example.com/sensitive-data",
-    headers={"Authorization": f"Bearer {os.getenv('SENSITIVE_TOKEN', '')}"},
+    url="https://compliance-api.internal/sensitive-check",
+    headers={"Authorization": f"Bearer {os.getenv('COMPLIANCE_TOKEN', '')}"},
     include_headers=False  # Don't log headers for this request
 )
 ```
@@ -545,15 +567,15 @@ The main endpoint for processing requests from Zowie's Decision Engine.
   "messages": [
     {
       "author": "User",
-      "content": "Hello, I need help with my order",
+      "content": "What documents do I need to submit?",
       "timestamp": "2024-01-15T10:30:00.000Z"
     }
   ],
   "context": "Optional context string",
   "persona": {
-    "name": "Support Bot",
-    "businessContext": "Customer support for e-commerce",
-    "toneOfVoice": "Friendly and professional"
+    "name": "Document Expert",
+    "businessContext": "Document verification and compliance",
+    "toneOfVoice": "Professional and helpful"
   }
 }
 ```
@@ -565,11 +587,11 @@ The main endpoint for processing requests from Zowie's Decision Engine.
   "command": {
     "type": "send_message",
     "payload": {
-      "message": "Thank you for contacting us! How can I help you today?"
+      "message": "For verification, you'll need a government-issued ID and proof of residence. Would you like specific details about acceptable document types?"
     }
   },
   "valuesToSave": {
-    "interaction_type": "support_request",
+    "interaction_type": "document_inquiry",
     "timestamp": "2024-01-15T10:30:00Z"
   },
   "events": [
@@ -578,7 +600,7 @@ The main endpoint for processing requests from Zowie's Decision Engine.
       "payload": {
         "model": "gemini-2.5-flash",
         "prompt": "{\n  \"messages\": [...],\n  \"system_instruction\": \"...\"\n}",
-        "response": "Thank you for contacting us! How can I help you today?",
+        "response": "For verification, you'll need a government-issued ID and proof of residence. Would you like specific details about acceptable document types?",
         "durationInMillis": 1200
       }
     }
@@ -622,7 +644,3 @@ The validation is future-compatible - unknown fields are ignored, so new API ver
 ## Support and Contributing
 
 For issues, questions, or contributions, please refer to the project repository.
-
-## License
-
-This project is licensed under the MIT License.

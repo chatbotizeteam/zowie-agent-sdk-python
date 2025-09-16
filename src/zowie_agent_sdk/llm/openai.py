@@ -68,12 +68,12 @@ class OpenAIProvider(BaseLLMProvider):
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> LLMResponse:
         openai_messages = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
-            system_instruction, include_persona, include_context, persona, context_data
+            system_instruction, include_persona, include_context, persona, context
         )
 
         events = events if events is not None else self.events
@@ -141,12 +141,12 @@ class OpenAIProvider(BaseLLMProvider):
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
         persona: Optional[Persona] = None,
-        context_data: Optional[str] = None,
+        context: Optional[str] = None,
         events: Optional[List[Event]] = None,
     ) -> T:
         openai_messages = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
-            system_instruction, include_persona, include_context, persona, context_data
+            system_instruction, include_persona, include_context, persona, context
         )
 
         events = events if events is not None else self.events
