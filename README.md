@@ -61,8 +61,8 @@ flowchart TD
         HTTP[Internal & External APIs]
     end
 
-    DE_Core -- Request<br/>(Messages, Persona, Context) --> FastAPI
-    FastAPI -- Response<br/>(Command, Events) --> DE_Core
+    DE_Core -- Request<br/>(messages, persona, context) --> FastAPI
+    FastAPI -- Response<br/>(command, events) --> DE_Core
 
     Context --> LLM
     Context --> HTTP
