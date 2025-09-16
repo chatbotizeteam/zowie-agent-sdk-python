@@ -7,8 +7,6 @@ from typing import List, Optional, Type, TypeVar
 from google import genai
 from pydantic import BaseModel
 
-T = TypeVar("T", bound=BaseModel)
-
 from ..domain import (
     GoogleProviderConfig,
     LLMResponse,
@@ -23,15 +21,23 @@ from ..protocol import (
 from ..utils import get_time_ms
 from .base import BaseLLMProvider
 
+T = TypeVar("T", bound=BaseModel)
+
 
 class GoogleProvider(BaseLLMProvider):
     def __init__(
         self,
         config: GoogleProviderConfig,
         events: List[Event],
-        persona: Optional[Persona],
+        include_persona_default: bool = True,
+        include_context_default: bool = True,
     ):
-        super().__init__(config, events, persona)
+        super().__init__(
+            config,
+            events,
+            include_persona_default,
+            include_context_default,
+        )
         self.client: genai.Client = genai.Client(api_key=self.api_key)
         self.logger = logging.getLogger("zowie_agent.GoogleProvider")
 
@@ -51,16 +57,21 @@ class GoogleProvider(BaseLLMProvider):
         return prepared_contents
 
     def generate_content(
-        self, 
-        messages: List[Message], 
-        system_instruction: str, 
-        include_persona: Optional[bool] = None, 
-        agent_include_persona_default: bool = True
+        self,
+        messages: List[Message],
+        system_instruction: Optional[str] = None,
+        include_persona: Optional[bool] = None,
+        include_context: Optional[bool] = None,
+        persona: Optional[Persona] = None,
+        context_data: Optional[str] = None,
+        events: Optional[List[Event]] = None,
     ) -> LLMResponse:
         prepared_contents = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
-            system_instruction, include_persona, agent_include_persona_default
+            system_instruction, include_persona, include_context, persona, context_data
         )
+
+        events = events if events is not None else self.events
 
         self.logger.debug(f"Making Google LLM request with model {self.model}")
 
@@ -75,7 +86,7 @@ class GoogleProvider(BaseLLMProvider):
             )
             stop = get_time_ms()
             duration = stop - start
-            
+
             self.logger.debug(
                 f"Google LLM request completed in {duration}ms with model {self.model}"
             )
@@ -96,7 +107,7 @@ class GoogleProvider(BaseLLMProvider):
             if candidate.content and candidate.content.parts:
                 text = candidate.content.parts[0].text or ""
 
-        self.events.append(
+        events.append(
             LLMCallEvent(
                 payload=LLMCallEventPayload(
                     model=self.model,
@@ -118,16 +129,19 @@ class GoogleProvider(BaseLLMProvider):
         self,
         messages: List[Message],
         schema: Type[T],
-        system_instruction: str,
+        system_instruction: Optional[str] = None,
         include_persona: Optional[bool] = None,
-        agent_include_persona_default: bool = True,
+        include_context: Optional[bool] = None,
+        persona: Optional[Persona] = None,
+        context_data: Optional[str] = None,
+        events: Optional[List[Event]] = None,
     ) -> T:
         prepared_contents = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
-            system_instruction, include_persona, agent_include_persona_default
+            system_instruction, include_persona, include_context, persona, context_data
         )
 
-        # Use Google's native structured output with response_schema
+        events = events if events is not None else self.events
         start = get_time_ms()
         response = self.client.models.generate_content(
             model=self.model,
@@ -146,17 +160,18 @@ class GoogleProvider(BaseLLMProvider):
             "response_schema": schema.model_json_schema(),
         }
 
-        self.events.append(
+        events.append(
             LLMCallEvent(
                 payload=LLMCallEventPayload(
                     model=self.model,
                     prompt=libJson.dumps(prompt_data, indent=2, sort_keys=True, ensure_ascii=False),
                     response=libJson.dumps(
-                        response.parsed.model_dump() if isinstance(response.parsed, BaseModel)
+                        response.parsed.model_dump()
+                        if isinstance(response.parsed, BaseModel)
                         else response.parsed,
                         indent=2,
                         sort_keys=True,
-                        ensure_ascii=False
+                        ensure_ascii=False,
                     ),
                     durationInMillis=stop - start,
                 )

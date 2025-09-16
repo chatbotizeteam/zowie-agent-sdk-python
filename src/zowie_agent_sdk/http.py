@@ -11,16 +11,22 @@ from .utils import get_time_ms
 
 
 class HTTPClient:
-    events: List[Event]
+    """HTTP client with automatic request/response event tracking.
+
+    All HTTP requests are automatically logged as APICallEvent objects for
+    observability and debugging. Supports configurable timeouts and header
+    inclusion controls.
+    
+    Thread-safe: Events are passed per-request, not stored in the instance.
+    """
+
     default_timeout_seconds: float
 
     def __init__(
-        self, 
-        events: List[Event], 
-        default_timeout_seconds: float = 10.0, 
-        include_headers_by_default: bool = True
+        self,
+        default_timeout_seconds: float = 10.0,
+        include_headers_by_default: bool = True,
     ):
-        self.events = events
         self.default_timeout_seconds = default_timeout_seconds
         self.include_headers_by_default = include_headers_by_default
         self.logger = logging.getLogger("zowie_agent.HTTPClient")
@@ -30,18 +36,18 @@ class HTTPClient:
         method: str,
         url: str,
         headers: Dict[str, str],
+        events: List[Event],
         json: Optional[Any] = None,
         timeout_seconds: Optional[float] = None,
         include_headers: Optional[bool] = None,
     ) -> requests.Response:
         should_include_headers = (
-            include_headers if include_headers is not None 
-            else self.include_headers_by_default
+            include_headers if include_headers is not None else self.include_headers_by_default
         )
-        
+
         timeout = timeout_seconds or self.default_timeout_seconds
         self.logger.debug(f"Making {method} request to {url} with timeout {timeout}s")
-        
+
         start = get_time_ms()
         try:
             response = requests.request(
@@ -54,11 +60,9 @@ class HTTPClient:
             stop = get_time_ms()
             duration = stop - start
 
-            self.logger.debug(
-                f"{method} {url} completed: {response.status_code} in {duration}ms"
-            )
+            self.logger.debug(f"{method} {url} completed: {response.status_code} in {duration}ms")
 
-            self.events.append(
+            events.append(
                 APICallEvent(
                     payload=APICallEventPayload(
                         url=url,
@@ -76,12 +80,12 @@ class HTTPClient:
         except requests.exceptions.Timeout as e:
             stop = get_time_ms()
             duration = stop - start
-            
+
             self.logger.warning(
                 f"{method} {url} timed out after {duration}ms (timeout: {timeout}s): {str(e)}"
             )
-            
-            self.events.append(
+
+            events.append(
                 APICallEvent(
                     payload=APICallEventPayload(
                         url=url,
@@ -101,13 +105,12 @@ class HTTPClient:
             duration = stop - start
             resp = getattr(e, "response", None)
             status_code = resp.status_code if resp is not None else 0
-            
+
             self.logger.error(
-                f"{method} {url} failed after {duration}ms "
-                f"(status: {status_code}): {str(e)}"
+                f"{method} {url} failed after {duration}ms " f"(status: {status_code}): {str(e)}"
             )
-            
-            self.events.append(
+
+            events.append(
                 APICallEvent(
                     payload=APICallEventPayload(
                         url=url,
@@ -115,8 +118,8 @@ class HTTPClient:
                         requestHeaders=headers if should_include_headers else {},
                         requestBody=(libJson.dumps(json) if json is not None else None),
                         responseHeaders=(
-                            dict(resp.headers) 
-                            if resp is not None and should_include_headers 
+                            dict(resp.headers)
+                            if resp is not None and should_include_headers
                             else {}
                         ),
                         responseStatusCode=status_code,
@@ -128,49 +131,64 @@ class HTTPClient:
             raise
 
     def get(
-        self, 
-        url: str, 
-        headers: Dict[str, str], 
-        timeout_seconds: Optional[float] = None, 
-        include_headers: Optional[bool] = None
+        self,
+        url: str,
+        headers: Dict[str, str],
+        events: Optional[List[Event]] = None,
+        timeout_seconds: Optional[float] = None,
+        include_headers: Optional[bool] = None,
     ) -> requests.Response:
-        return self._request("GET", url, headers, None, timeout_seconds, include_headers)
+        if events is None:
+            events = []
+        return self._request("GET", url, headers, events, None, timeout_seconds, include_headers)
 
     def post(
-        self, 
-        url: str, 
-        json: Any, 
-        headers: Dict[str, str], 
-        timeout_seconds: Optional[float] = None, 
-        include_headers: Optional[bool] = None
+        self,
+        url: str,
+        json: Any,
+        headers: Dict[str, str],
+        events: Optional[List[Event]] = None,
+        timeout_seconds: Optional[float] = None,
+        include_headers: Optional[bool] = None,
     ) -> requests.Response:
-        return self._request("POST", url, headers, json, timeout_seconds, include_headers)
+        if events is None:
+            events = []
+        return self._request("POST", url, headers, events, json, timeout_seconds, include_headers)
 
     def put(
-        self, 
-        url: str, 
-        json: Any, 
-        headers: Dict[str, str], 
-        timeout_seconds: Optional[float] = None, 
-        include_headers: Optional[bool] = None
+        self,
+        url: str,
+        json: Any,
+        headers: Dict[str, str],
+        events: Optional[List[Event]] = None,
+        timeout_seconds: Optional[float] = None,
+        include_headers: Optional[bool] = None,
     ) -> requests.Response:
-        return self._request("PUT", url, headers, json, timeout_seconds, include_headers)
+        if events is None:
+            events = []
+        return self._request("PUT", url, headers, events, json, timeout_seconds, include_headers)
 
     def patch(
-        self, 
-        url: str, 
-        json: Any, 
-        headers: Dict[str, str], 
-        timeout_seconds: Optional[float] = None, 
-        include_headers: Optional[bool] = None
+        self,
+        url: str,
+        json: Any,
+        headers: Dict[str, str],
+        events: Optional[List[Event]] = None,
+        timeout_seconds: Optional[float] = None,
+        include_headers: Optional[bool] = None,
     ) -> requests.Response:
-        return self._request("PATCH", url, headers, json, timeout_seconds, include_headers)
+        if events is None:
+            events = []
+        return self._request("PATCH", url, headers, events, json, timeout_seconds, include_headers)
 
     def delete(
-        self, 
-        url: str, 
-        headers: Dict[str, str], 
-        timeout_seconds: Optional[float] = None, 
-        include_headers: Optional[bool] = None
+        self,
+        url: str,
+        headers: Dict[str, str],
+        events: Optional[List[Event]] = None,
+        timeout_seconds: Optional[float] = None,
+        include_headers: Optional[bool] = None,
     ) -> requests.Response:
-        return self._request("DELETE", url, headers, None, timeout_seconds, include_headers)
+        if events is None:
+            events = []
+        return self._request("DELETE", url, headers, events, None, timeout_seconds, include_headers)

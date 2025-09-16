@@ -11,12 +11,16 @@ from .domain import (
     BearerTokenAuth,
     ContinueConversationResponse,
     GoogleProviderConfig,
+    LLMConfig,
     LLMResponse,
     OpenAIProviderConfig,
     TransferToBlockResponse,
 )
 from .protocol import (
+    IncomingRequest,
+    Message,
     Metadata,
+    Persona,
 )
 
 __all__ = (
@@ -31,8 +35,12 @@ __all__ = (
     "AuthConfig",
     "GoogleProviderConfig",
     "OpenAIProviderConfig",
+    "LLMConfig",
     "LLMResponse",
+    "IncomingRequest",
+    "Message",
     "Metadata",
+    "Persona",
     "__version__",
 )
 

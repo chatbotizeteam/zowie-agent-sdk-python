@@ -30,9 +30,15 @@ class OpenAIProvider(BaseLLMProvider):
         self,
         config: OpenAIProviderConfig,
         events: List[Event],
-        persona: Optional[Persona],
+        include_persona_default: bool = True,
+        include_context_default: bool = True,
     ):
-        super().__init__(config, events, persona)
+        super().__init__(
+            config,
+            events,
+            include_persona_default,
+            include_context_default,
+        )
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
         self.logger = logging.getLogger("zowie_agent.OpenAIProvider")
 
@@ -56,18 +62,21 @@ class OpenAIProvider(BaseLLMProvider):
         return openai_messages
 
     def generate_content(
-        self, 
-        messages: List[Message], 
-        system_instruction: str, 
-        include_persona: Optional[bool] = None, 
-        agent_include_persona_default: bool = True
+        self,
+        messages: List[Message],
+        system_instruction: Optional[str] = None,
+        include_persona: Optional[bool] = None,
+        include_context: Optional[bool] = None,
+        persona: Optional[Persona] = None,
+        context_data: Optional[str] = None,
+        events: Optional[List[Event]] = None,
     ) -> LLMResponse:
         openai_messages = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
-            system_instruction, include_persona, agent_include_persona_default
+            system_instruction, include_persona, include_context, persona, context_data
         )
 
-        # Add system message if we have instructions
+        events = events if events is not None else self.events
         if instructions_str:
             system_message: ChatCompletionMessageParam = {
                 "role": "system",
@@ -85,7 +94,7 @@ class OpenAIProvider(BaseLLMProvider):
             )
             stop = get_time_ms()
             duration = stop - start
-            
+
             self.logger.debug(
                 f"OpenAI LLM request completed in {duration}ms with model {self.model}"
             )
@@ -100,7 +109,7 @@ class OpenAIProvider(BaseLLMProvider):
             "system_instruction": instructions_str,
         }
 
-        self.events.append(
+        events.append(
             LLMCallEvent(
                 payload=LLMCallEventPayload(
                     model=self.model,
@@ -128,16 +137,19 @@ class OpenAIProvider(BaseLLMProvider):
         self,
         messages: List[Message],
         schema: Type[T],
-        system_instruction: str,
+        system_instruction: Optional[str] = None,
         include_persona: Optional[bool] = None,
-        agent_include_persona_default: bool = True,
+        include_context: Optional[bool] = None,
+        persona: Optional[Persona] = None,
+        context_data: Optional[str] = None,
+        events: Optional[List[Event]] = None,
     ) -> T:
         openai_messages = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
-            system_instruction, include_persona, agent_include_persona_default
+            system_instruction, include_persona, include_context, persona, context_data
         )
 
-        # Add system message if we have instructions
+        events = events if events is not None else self.events
         if instructions_str:
             system_message: ChatCompletionMessageParam = {
                 "role": "system",
@@ -160,7 +172,7 @@ class OpenAIProvider(BaseLLMProvider):
             "response_schema": schema.model_json_schema(),
         }
 
-        self.events.append(
+        events.append(
             LLMCallEvent(
                 payload=LLMCallEventPayload(
                     model=self.model,

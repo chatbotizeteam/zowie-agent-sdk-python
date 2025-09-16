@@ -16,6 +16,7 @@ class CamelCaseModel(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
+        extra="ignore",
     )
 
 
@@ -126,6 +127,16 @@ class APICallEvent(CamelCaseModel):
 
 
 Event = Annotated[Union[LLMCallEvent, APICallEvent], Field(discriminator="type")]
+
+
+# Incoming request validation
+class IncomingRequest(CamelCaseModel):
+    """Complete request validation model matching SPEC.md."""
+
+    metadata: Metadata
+    messages: List[Message]
+    context: Optional[str] = None
+    persona: Optional[Persona] = None
 
 
 # Main response type

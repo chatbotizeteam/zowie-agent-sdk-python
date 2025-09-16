@@ -11,6 +11,12 @@ from .domain import APIKeyAuth, AuthConfig, BasicAuth, BearerTokenAuth
 
 
 class AuthValidator:
+    """FastAPI dependency for validating incoming request authentication.
+
+    Supports API key, basic auth, and bearer token authentication methods.
+    Uses secure string comparison to prevent timing-based attacks.
+    """
+
     def __init__(self, auth_config: Optional[AuthConfig] = None):
         self.auth_config = auth_config
         self.logger = logging.getLogger("zowie_agent.AuthValidator")
@@ -21,7 +27,9 @@ class AuthValidator:
             return
 
         client_ip = request.client.host if request.client else "unknown"
-        self.logger.debug(f"Validating auth for {request.method} {request.url.path} from {client_ip}")
+        self.logger.debug(
+            f"Validating auth for {request.method} {request.url.path} from {client_ip}"
+        )
 
         try:
             if isinstance(self.auth_config, APIKeyAuth):
@@ -30,11 +38,13 @@ class AuthValidator:
                 self._verify_basic_auth(request)
             elif isinstance(self.auth_config, BearerTokenAuth):
                 self._verify_bearer_token(request)
-            
-            self.logger.debug(f"Authentication successful for {request.method} {request.url.path} from {client_ip}")
+
+            self.logger.debug(
+                f"Authentication successful for {request.method} {request.url.path} from {client_ip}"  # noqa: E501
+            )
         except HTTPException as e:
             self.logger.warning(
-                f"Authentication failed for {request.method} {request.url.path} from {client_ip}: {e.detail}"
+                f"Authentication failed for {request.method} {request.url.path} from {client_ip}: {e.detail}"  # noqa: E501
             )
             raise
 
