@@ -48,18 +48,18 @@ The SDK is built on **FastAPI**, providing an HTTP server that integrates with Z
 
 flowchart TD
     subgraph DecisionEngine [Decision Engine]
-        DE_Core[Decision Engine Core]
+        DE_Core[External Agent Block]
     end
 
     subgraph AgentSDK [Zowie Agent SDK]
         direction LR
         FastAPI[FastAPI Application] --> AgentClass["Agent Class: handle(context)"]
-        AgentClass --> Context["Context Object\n(metadata, messages, llm, http, etc.)"]
+        AgentClass --> Context["Context Object \n (metadata, messages, llm, http, etc.)"]
     end
 
     subgraph ExternalServices [External Services]
         direction TB
-        LLM["LLM Providers\n(Google, OpenAI)"]
+        LLM["LLM Providers \n (Google, OpenAI)"]
         HTTP[Internal & External APIs]
     end
 
