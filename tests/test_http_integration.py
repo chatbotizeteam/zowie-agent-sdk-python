@@ -2,9 +2,10 @@
 
 import json
 from datetime import datetime
-from typing import Any, List
+from typing import List
 from unittest.mock import Mock, patch
 
+from tests.utils import create_mock_http_response, create_test_message, create_test_metadata
 from zowie_agent_sdk import (
     Agent,
     AgentResponse,
@@ -15,8 +16,6 @@ from zowie_agent_sdk import (
     Metadata,
 )
 from zowie_agent_sdk.protocol import Event
-
-from tests.utils import create_mock_http_response, create_test_message, create_test_metadata
 
 
 @patch("requests.request")
@@ -108,7 +107,9 @@ def test_http_client_post_integration(mock_request: Mock) -> None:
 
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
-    messages = [Message(author="User", content="Create resource", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [
+        Message(author="User", content="Create resource", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
     events: List[Event] = []
 
     context = Context(
@@ -158,7 +159,9 @@ def test_http_client_error_handling(mock_request: Mock) -> None:
 
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
-    messages = [Message(author="User", content="Test error", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [
+        Message(author="User", content="Test error", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
     events: List[Event] = []
 
     context = Context(
@@ -228,7 +231,9 @@ def test_http_client_different_methods(mock_request: Mock) -> None:
 
         metadata = Metadata(requestId=f"test-{method}", chatbotId="test", conversationId="test")
         messages = [
-            Message(author="User", content=f"Test {method}", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+            Message(
+                author="User", content=f"Test {method}", timestamp=datetime(2024, 1, 1, 0, 0, 0)
+            )
         ]  # noqa: E501
         events: List[Event] = []
 
@@ -282,7 +287,9 @@ def test_http_client_timeout_configuration(mock_request: Mock) -> None:
 
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
-    messages = [Message(author="User", content="Test timeout", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [
+        Message(author="User", content="Test timeout", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
     events: List[Event] = []
 
     context = Context(
@@ -333,7 +340,9 @@ def test_http_client_header_inclusion(mock_request: Mock) -> None:
 
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
-    messages = [Message(author="User", content="Test headers", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [
+        Message(author="User", content="Test headers", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
     events: List[Event] = []
 
     context = Context(
@@ -390,7 +399,9 @@ def test_http_client_json_serialization(mock_request: Mock) -> None:
 
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
-    messages = [Message(author="User", content="Test JSON", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [
+        Message(author="User", content="Test JSON", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
     events: List[Event] = []
 
     context = Context(

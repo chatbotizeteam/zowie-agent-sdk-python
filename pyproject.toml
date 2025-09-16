@@ -21,6 +21,7 @@ mypy = "^1.10"
 ruff = "^0.6"
 pytest-cov = "^7.0.0"
 httpx = "^0.28.1"
+pre-commit = "^3.6.0"
 
 [tool.poetry]
 packages = [{include = "zowie_agent_sdk", from = "src"}]
@@ -36,6 +37,24 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]
+ignore = [
+    "E501",  # line too long, handled by formatter
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+markers = [
+    "real: marks tests as requiring real API keys (deselect with '-k \"not real\"')",
+]
+
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

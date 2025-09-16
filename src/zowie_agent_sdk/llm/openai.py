@@ -52,7 +52,7 @@ class OpenAIProvider(BaseLLMProvider):
                 role = "user"  # Default fallback
 
             message_param: ChatCompletionMessageParam = {
-                "role": role,  # type: ignore
+                "role": role,  # pyright: ignore
                 "content": message.content,
             }
             openai_messages.append(message_param)
@@ -102,7 +102,7 @@ class OpenAIProvider(BaseLLMProvider):
             raise
 
         prompt_data = {
-            "messages": [msg.model_dump(mode='json') for msg in messages],
+            "messages": [msg.model_dump(mode="json") for msg in messages],
             "system_instruction": instructions_str,
         }
 
@@ -159,7 +159,7 @@ class OpenAIProvider(BaseLLMProvider):
         stop = get_time_ms()
 
         prompt_data = {
-            "messages": [msg.model_dump(mode='json') for msg in messages],
+            "messages": [msg.model_dump(mode="json") for msg in messages],
             "system_instruction": instructions_str,
             "response_schema": schema.model_json_schema(),
         }

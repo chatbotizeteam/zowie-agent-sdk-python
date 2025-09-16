@@ -59,7 +59,7 @@ def test_client(test_agent: TestAgent) -> TestClient:
 
 # Test data creation utilities are available in tests/utils.py:
 # - create_test_metadata(): Create customizable Metadata objects
-# - create_test_message(): Create customizable Message objects  
+# - create_test_message(): Create customizable Message objects
 # - create_mock_http_response(): Create mock HTTP responses
 # - assert_valid_agent_response(): Validate response structure
 # - assert_events_recorded(): Check events in responses

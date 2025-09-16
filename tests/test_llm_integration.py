@@ -327,11 +327,11 @@ def test_llm_timeout_handling() -> None:
 
     # Test the response handling
     result = agent.handle(context)
-    
+
     assert isinstance(result, ContinueConversationResponse)
     assert values_stored.get("response_received") is True
     assert "Delayed response" in result.message
-    
+
     # Verify the fake provider was called
     assert fake_provider.call_count == 1
     assert fake_provider.assert_called_with(messages=messages)

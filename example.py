@@ -324,15 +324,15 @@ class DocumentVerificationExpertAgent(Agent):
 
         return f"""
         You are a helpful document verification expert. The user is asking: {user_question}
-        
+
         Current document status:
         - Overall status: {overall_status}
         - Account type: {account_type}
         - Missing documents: {missing or 'None'}
         - Rejected documents: {rejected or 'None'}
         - Deadline: {deadline}
-        
-        Respond naturally and conversationally. Be helpful and specific about their document 
+
+        Respond naturally and conversationally. Be helpful and specific about their document
         requirements. If documents are missing or rejected, clearly explain what they need to do.
         Keep the tone professional but friendly.
         """
