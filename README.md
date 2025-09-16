@@ -1,62 +1,92 @@
 # Zowie Agent SDK for Python
 
-A Python framework for building external agents that integrate with Zowie's Decision Engine. Build agents that can process conversations, connect to internal databases, call private APIs, use large language models, and transfer conversations between process blocks. The SDK handles all communication with the Decision Engine and automatically tracks HTTP requests and LLM calls for observability in Supervisor.
+A Python framework for building external agents that integrate with **Zowie’s Decision Engine**.
+With this SDK, you can build agents that:
+
+- Process conversations and generate natural responses
+- Connect to internal systems and private APIs
+- Use LLMs (Google Gemini, OpenAI GPT) for reasoning
+- Transfer conversations between workflow blocks
+- Get **full observability** in Zowie Supervisor (LLM calls + API calls auto-tracked)
+
+The SDK handles all communication with the Decision Engine so you can focus on your business logic.
+
+## Table of Contents
+
+- [Architecture](https://www.google.com/search?q=%23architecture)
+- [Prerequisites](https://www.google.com/search?q=%23prerequisites)
+- [Installation](https://www.google.com/search?q=%23installation)
+- [Quick Start](https://www.google.com/search?q=%23quick-start)
+- [Configuration](https://www.google.com/search?q=%23configuration)
+  - [LLM Provider Configuration](https://www.google.com/search?q=%23llm-provider-configuration)
+  - [Authentication Configuration](https://www.google.com/search?q=%23authentication-configuration)
+- [Usage Guide and API Reference](https://www.google.com/search?q=%23usage-guide-and-api-reference)
+  - [Agent Class](https://www.google.com/search?q=%23agent-class)
+  - [Context Class](https://www.google.com/search?q=%23context-class)
+  - [Response Types](https://www.google.com/search?q=%23response-types)
+  - [LLM Client](https://www.google.com/search?q=%23llm-client)
+  - [HTTP Client](https://www.google.com/search?q=%23http-client)
+  - [Value Storage](https://www.google.com/search?q=%23value-storage)
+- [Performance and Concurrency](https://www.google.com/search?q=%23performance-and-concurrency)
+- [Event Tracking and Observability](https://www.google.com/search?q=%23event-tracking-and-observability)
+- [API Endpoints](https://www.google.com/search?q=%23api-endpoints)
+- [Request Validation](https://www.google.com/search?q=%23request-validation)
+- [Testing](https://www.google.com/search?q=%23testing)
+- [Development Setup](https://www.google.com/search?q=%23development-setup)
+- [Support and Contributing](https://www.google.com/search?q=%23support-and-contributing)
+
+---
 
 ## Architecture
 
-The SDK is built on **FastAPI**, providing an HTTP server with automatic request validation and structured response handling. Agents receive HTTP POST requests from Zowie's Decision Engine, process them using configurable LLM providers, database connections, private APIs, and external services, then return responses to control conversation flow. All LLM calls and HTTP requests are automatically tracked and made available in Supervisor for observability.
+The SDK is built on **FastAPI**, providing an HTTP server that integrates with Zowie's Decision Engine. Your agents receive conversation requests, process them using LLMs and external APIs, then return responses to either continue the conversation or transfer control to other workflow blocks.
 
 ### System Architecture Diagram
 
-```
-┌─────────────────────────────┐          ┌──────────────────────────────────────┐
-│    Decision Engine          │          │        Zowie Agent SDK               │
-│                             │          │            (Your Agent)              │
-├─────────────────────────────┤          ├──────────────────────────────────────┤
-│                             │ Request  │                                      │
-│                             │ ──────►  │  FastAPI Application                 │
-│                             │          │  ┌─────────────────────────────────┐ │
-│                             │          │  │          Agent Class            │ │
-│                             │          │  │                                 │ │
-│                             │          │  │  handle(context) -> Response    │ │
-│                             │ Response │  └─────────────────────────────────┘ │
-│                             │ ◄──────  │                                      │
-│                             │          │  ┌─────────────────────────────────┐ │
-│                             │          │  │         Context Object          │ │
-│                             │          │  │                                 │ │
-│                             │          │  │  • metadata: Request Metadata   │ │
-│                             │          │  │  • messages: Conversation       │ │
-│                             │          │  │  • persona: AI Agent Persona    │ │
-│                             │          │  │  • context: Additional context  │ │
-│                             │          │  │  • llm: LLM Client              │ │
-│                             │          │  │  • http: HTTP Client            │ │
-│                             │          │  │  • store_value: State Storage   │ │
-│                             │          │  │  • events: Supervisor Events    │ │
-│                             │          │  └─────────────────────────────────┘ │
-└─────────────────────────────┘          └──────────────────────────────────────┘
-                                                           │
-                                                           │
-                ┌──────────────────────────────────────────┼──────────────────────────────────────────┐
-                │                                          │                                          │
-                ▼                                          ▼                                          ▼
-    ┌─────────────────────┐                   ┌─────────────────────┐                   ┌──────────────────────┐
-    │   LLM Client        │                   │   HTTP Client       │                   │   Authentication     │
-    │  • Google Gemini    │                   │  • Internal Systems │                   │  • API Key Auth      │
-    │  • OpenAI           │                   │  • External APIs    │                   │  • Bearer Token      │
-    │  • Event Logging    │                   │  • Event Logging    │                   │  • Basic Auth        │
-    │                     │                   │                     │                   │                      │
-    └─────────────────────┘                   └─────────────────────┘                   └──────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Decision Engine
+        DE_Core[Decision Engine Core]
+    end
+
+    subgraph Your Agent [Zowie Agent SDK]
+        direction LR
+        FastAPI[FastAPI Application] --> AgentClass["Agent Class: handle(context)"]
+        AgentClass --> Context["Context Object <br/>(metadata, messages, llm, http, etc.)"]
+    end
+
+    subgraph External Services
+        direction TB
+        LLM[LLM Providers <br/>(Google, OpenAI)]
+        HTTP[Internal & External APIs]
+    end
+
+    DE_Core -- Request --> FastAPI
+    FastAPI -- Response --> DE_Core
+
+    Context --> LLM
+    Context --> HTTP
 ```
 
 ### Core Components
 
-- **Agent Base Class**: Abstract base class defining the agent interface - implement your business logic here
-- **Context Management**: Request context with conversation history, metadata, and pre-configured clients
-- **LLM Integration**: Multi-provider support for Google Gemini and OpenAI GPT models with automatic event tracking
-- **HTTP Client**: Automatic request/response logging for private APIs and external services
-- **Authentication**: Multiple authentication methods for securing your agent endpoints
-- **Event Tracking**: All LLM calls and HTTP requests automatically logged and available in Supervisor
-- **Internal System Access**: Connect to databases, private APIs, legacy systems - HTTP requests are automatically tracked for observability
+- **Agent Base Class**: Abstract base class defining the agent interface - implement your business logic here.
+- **Context Management**: Request context with conversation history, metadata, and pre-configured clients.
+- **LLM Integration**: Multi-provider support for Google Gemini and OpenAI GPT models with automatic event tracking.
+- **HTTP Client**: Automatic request/response logging for private APIs and external services.
+- **Authentication**: Multiple authentication methods for securing your agent endpoints.
+- **Event Tracking**: All LLM calls and HTTP requests automatically logged and available in Supervisor.
+- **Internal System Access**: Connect to databases, private APIs, legacy systems - HTTP requests are automatically tracked for observability.
+
+---
+
+## Prerequisites
+
+- Python 3.9+
+- An active Zowie AI Agent
+- API keys for your chosen LLM provider (Google Gemini/OpenAI)
+
+---
 
 ## Installation
 
@@ -77,36 +107,6 @@ pip install zowie-agent-sdk
 poetry add zowie-agent-sdk
 ```
 
-## Development Setup
-
-For contributors, set up the development environment:
-
-```bash
-# Clone repository
-git clone <repo-url>
-cd zowie-agent-sdk-python
-
-# Option 1: Use Makefile (recommended)
-make setup
-
-# Option 2: Use Poetry script
-poetry install
-poetry run setup-dev
-
-# Option 3: Manual setup
-poetry install
-poetry run pre-commit install
-```
-
-**Available development commands:**
-```bash
-make test        # Run tests
-make lint        # Check code style
-make format      # Format code
-make typecheck   # Run type checking
-make check       # Run all quality checks
-```
-
 ### Using uv
 
 ```bash
@@ -123,36 +123,16 @@ The SDK requires Python 3.9+ and includes the following core dependencies:
 - **OpenAI SDK**: For OpenAI GPT model integration
 - **Requests**: HTTP client library
 
+---
+
 ## Quick Start
 
-### Example Use Case: Document Verification Expert Agent
+### 1\. Basic Agent Implementation
 
-The repository includes a complete example (`example.py`) demonstrating a **Document Verification Expert Agent** that showcases advanced SDK features:
-
-- **Specialized Expertise**: Agent only handles document verification questions
-- **Scope Detection**: Uses structured analysis to determine if queries are within its domain
-- **Transfer Capability**: Automatically transfers out-of-scope questions to general support
-- **Internal System Integration**: Demonstrates connecting to internal APIs and private systems that cannot be exposed publicly
-- **Natural Responses**: Returns conversational answers to end users
-
-**Key Features Demonstrated:**
-
-- `generate_structured_content()` for intent analysis
-- `TransferToBlockResponse` for seamless handoffs
-- `context.http` for internal API calls with automatic logging and Supervisor visibility
-- Expert system pattern for specialized business logic
-
-**Example interactions:**
-
-- "What documents do I need?" → Detailed requirements
-- "Why was my passport rejected?" → Specific guidance
-- "Reset my password" → Transfer to general support
-
-Run the example: `poetry run uvicorn example:app --reload`
-
-### Basic Agent Implementation
+Create a simple agent that responds to user messages using an LLM.
 
 ```python
+# example.py
 import os
 from zowie_agent_sdk import (
     Agent,
@@ -185,258 +165,190 @@ agent = CustomerSupportAgent(
 app = agent.app
 ```
 
-### Running in Development
+### 2\. Running Your Agent
 
-Use uvicorn with reload for development:
+#### Development
 
-```bash
-poetry uvicorn example:app --host 0.0.0.0 --port 8000 --reload --log-level debug
-```
-
-### Running in Production
-
-For production deployment, disable reload and use multiple workers (if necessary):
+Use `uvicorn` with auto-reload for a smooth development experience.
 
 ```bash
-poetry uvicorn example:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
+poetry run uvicorn example:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 ```
 
-## Performance and Concurrency
+#### Production
 
-### Synchronous Design
-
-The SDK uses **synchronous handlers** for simplicity - no need to manage `async`/`await` patterns in your agent logic. This makes it easier to integrate with existing libraries, debug issues, and write readable code.
-
-```python
-def handle(self, context: Context) -> AgentResponse:
-    # Simple sync code - no async complexity
-    data = context.http.get(url, headers)
-    response = context.llm.generate_content(messages=context.messages)
-    return ContinueConversationResponse(message=response)
-```
-
-### Concurrency Limits
-
-**Default**: 40 concurrent requests per worker (FastAPI/Starlette uses AnyIO thread limiter)
-
-For most agent workloads (conversation-based, human-paced), this default is sufficient since agents typically process one conversation at a time.
-
-### Scaling Options
-
-**Horizontal scaling** (recommended): Use multiple Uvicorn workers
+For production deployment, disable reload and use multiple workers to handle concurrent conversations.
 
 ```bash
-# Single worker (development)
-poetry run uvicorn example:app --reload
-
-# Production with 4 workers = 160 concurrent requests
-poetry run uvicorn example:app --workers 4 --host 0.0.0.0 --port 8000
-
-# High-traffic deployment
-poetry run uvicorn example:app --workers 8 --host 0.0.0.0 --port 8000
+poetry run uvicorn example:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 ```
 
-**When to scale**: Consider multiple workers if you expect sustained high request volumes or have many simultaneous conversations.
+### 3\. Advanced Example: Document Verification Expert
+
+The repository includes a complete example (`example.py`) demonstrating a **Document Verification Expert Agent** that showcases advanced SDK features:
+
+- **Specialized Expertise**: Agent only handles document verification questions.
+- **Scope Detection**: Uses structured analysis to determine if queries are within its domain.
+- **Transfer Capability**: Automatically transfers out-of-scope questions to general support.
+- **Internal System Integration**: Demonstrates connecting to internal APIs and private systems that cannot be exposed publicly.
+- **Natural Responses**: Returns conversational answers to end users.
+
+**Key Features Demonstrated:**
+
+- `generate_structured_content()` for intent analysis
+- `TransferToBlockResponse` for seamless handoffs
+- `context.http` for internal API calls with automatic logging and Supervisor visibility
+- Expert system pattern for specialized business logic
+
+**Example interactions:**
+
+- "What documents do I need?" → Detailed requirements
+- "Why was my passport rejected?" → Specific guidance
+- "Reset my password" → Transfer to general support
+
+Run the example: `poetry run uvicorn example:app --reload`
+
+---
 
 ## Configuration
 
 ### LLM Provider Configuration
 
-Configure the LLM provider using `LLMConfig`, which accepts either Google or OpenAI configurations:
+Configure the LLM provider using one of the following configuration objects.
 
 #### Google Gemini
 
 ```python
-from zowie_agent_sdk import GoogleProviderConfig, LLMConfig
+from zowie_agent_sdk import GoogleProviderConfig
 
-llm_config: LLMConfig = GoogleProviderConfig(
+llm_config = GoogleProviderConfig(
     api_key=os.getenv("GOOGLE_API_KEY", ""),
-    model="gemini-2.5-flash"  # or "gemini-1.5-pro", "gemini-1.5-flash"
+    model="gemini-2.5-flash"  # or "gemini-2.5-pro"
 )
 ```
 
-**GoogleProviderConfig Parameters:**
-
-- **api_key** (`str`): Google AI API key from Google AI Studio
-- **model** (`str`): Model name (e.g., "gemini-2.5-flash", "gemini-1.5-pro")
+- **api_key** (`str`): Your Google AI API key.
+- **model** (`str`): The model name to use.
 
 #### OpenAI GPT
 
 ```python
-from zowie_agent_sdk import OpenAIProviderConfig, LLMConfig
+from zowie_agent_sdk import OpenAIProviderConfig
 
-llm_config: LLMConfig = OpenAIProviderConfig(
+llm_config = OpenAIProviderConfig(
     api_key=os.getenv("OPENAI_API_KEY", ""),
-    model="gpt-4o-mini"  # or "gpt-4", "gpt-4o", "gpt-3.5-turbo"
+    model="gpt-5-mini"  # or "gpt-5"
 )
 ```
 
-**OpenAIProviderConfig Parameters:**
-
-- **api_key** (`str`): OpenAI API key from OpenAI platform
-- **model** (`str`): Model name (e.g., "gpt-4o-mini", "gpt-4", "gpt-4o")
+- **api_key** (`str`): Your OpenAI API key.
+- **model** (`str`): The model name to use.
 
 ### Authentication Configuration
 
-Configure authentication using `AuthConfig`, which accepts API key, basic auth, or bearer token configurations. The authentication strategy must match your Zowie External Agent Block configuration.
+Secure your agent's endpoint using an authentication strategy that matches your Zowie External Agent Block configuration.
 
 #### API Key Authentication
 
 ```python
-from zowie_agent_sdk import APIKeyAuth, AuthConfig
+from zowie_agent_sdk import APIKeyAuth
 
-auth_config: AuthConfig = APIKeyAuth(
+auth_config = APIKeyAuth(
     header_name="X-API-Key",
     api_key=os.getenv("AGENT_API_KEY", "")
 )
-
-agent = CustomerSupportAgent(
-    llm_config=llm_config,
-    auth_config=auth_config
-)
 ```
 
-**APIKeyAuth Parameters:**
-
-- **header_name** (`str`): Name of the HTTP header containing the API key
-- **api_key** (`str`): The expected API key value
+- **header_name** (`str`): Name of the HTTP header containing the API key.
+- **api_key** (`str`): The expected API key value.
 
 #### Basic Authentication
 
 ```python
-from zowie_agent_sdk import BasicAuth, AuthConfig
+from zowie_agent_sdk import BasicAuth
 
-auth_config: AuthConfig = BasicAuth(
+auth_config = BasicAuth(
     username=os.getenv("AGENT_USERNAME", "admin"),
     password=os.getenv("AGENT_PASSWORD", "")
 )
 ```
 
-**BasicAuth Parameters:**
-
-- **username** (`str`): Expected username for HTTP Basic Auth
-- **password** (`str`): Expected password for HTTP Basic Auth
+- **username** (`str`): The expected username for HTTP Basic Auth.
+- **password** (`str`): The expected password for HTTP Basic Auth.
 
 #### Bearer Token Authentication
 
 ```python
-from zowie_agent_sdk import BearerTokenAuth, AuthConfig
+from zowie_agent_sdk import BearerTokenAuth
 
-auth_config: AuthConfig = BearerTokenAuth(
+auth_config = BearerTokenAuth(
     token=os.getenv("AGENT_BEARER_TOKEN", "")
 )
 ```
 
-**BearerTokenAuth Parameters:**
-
-- **token** (`str`): Expected bearer token value
-
-#### No Authentication
-
-```python
-# Authentication is optional - use None for no authentication
-agent = CustomerSupportAgent(
-    llm_config=llm_config,
-    auth_config=None  # No authentication required
-)
-```
+- **token** (`str`): The expected bearer token value.
 
 ### Agent Configuration Parameters
+
+You can customize the agent's behavior during initialization.
 
 ```python
 agent = MyAgent(
     llm_config=llm_config,
-    http_timeout_seconds=10.0,                      # Default HTTP timeout
-    auth_config=auth_config,                        # Authentication (optional)
-    include_persona_by_default=True,                # Include persona in LLM calls
-    include_context_by_default=True,                # Include context in LLM calls
-    include_http_headers_by_default=True,           # Include headers in event logs
-    log_level="INFO"                                # Logging level
+    http_timeout_seconds=10.0,                  # Default HTTP timeout
+    auth_config=auth_config,                    # Authentication (optional)
+    include_persona_by_default=True,            # Include persona in LLM calls
+    include_context_by_default=True,            # Include context in LLM calls
+    include_http_headers_by_default=True,       # Include headers in event logs
+    log_level="INFO"                            # Logging level
 )
 ```
 
-## API Reference
+---
+
+## Usage Guide and API Reference
 
 ### Agent Class
 
-The `Agent` class is the base class for all agents. Inherit from this class and implement the `handle` method:
+The `Agent` class is the base for all agents. Inherit from this class and implement the `handle` method.
 
 ```python
-from abc import ABC, abstractmethod
 from zowie_agent_sdk import Agent, Context, AgentResponse
 
 class MyAgent(Agent):
-    @abstractmethod
     def handle(self, context: Context) -> AgentResponse:
-        """Process the incoming request and return a response.
+        """
+        Process the incoming request and return a response.
 
         Args:
-            context: Request context containing messages, metadata, and clients
+            context: Request context containing messages, metadata, and clients.
 
         Returns:
-            Either ContinueConversationResponse or TransferToBlockResponse
+            Either ContinueConversationResponse or TransferToBlockResponse.
         """
+        # Your agent logic goes here
         pass
 ```
 
-#### Constructor Parameters
-
-- **llm_config** (`LLMConfig`): Configuration for the LLM provider (required)
-- **http_timeout_seconds** (`Optional[float]`): Default timeout for HTTP requests in seconds (default: 10.0)
-- **auth_config** (`Optional[AuthConfig]`): Authentication configuration (default: None)
-- **include_persona_by_default** (`bool`): Include persona in LLM prompts by default (default: True)
-- **include_context_by_default** (`bool`): Include context data in LLM prompts by default (default: True)
-- **include_http_headers_by_default** (`bool`): Include HTTP headers in event logs (default: True)
-- **log_level** (`str`): Python logging level (default: "INFO")
-
 ### Context Class
 
-The `Context` object provides access to all request data and pre-configured clients:
+The `Context` object provides access to all request data and pre-configured clients.
 
-```python
-class Context:
-    metadata: Metadata              # Request metadata (IDs, timestamps)
-    messages: List[Message]         # Conversation message history
-    context: Optional[str]          # Context string from Zowie configuration
-    persona: Optional[Persona]      # Chatbot persona information
-    llm: LLM                       # LLM client with automatic context injection
-    http: HTTPClient               # HTTP client with automatic event tracking
-    store_value: Callable[[str, Any], None]  # Function to store values in Decision Engine
-```
-
-#### Metadata Fields
-
-```python
-class Metadata:
-    requestId: str          # Unique request identifier
-    chatbotId: str         # Chatbot identifier
-    conversationId: str    # Conversation/session identifier
-    interactionId: Optional[str]  # Optional interaction identifier
-```
-
-#### Message Structure
-
-```python
-class Message:
-    author: Literal["User", "Chatbot"]  # Message author
-    content: str                        # Message text content
-    timestamp: datetime                 # Serialized as ISO 8601 timestamp
-```
-
-#### Persona Information
-
-```python
-class Persona:
-    name: Optional[str]              # AI Agent name
-    business_context: Optional[str]  # Business context description
-    tone_of_voice: Optional[str]     # Tone and style guidelines
-```
+- `metadata: Metadata`: Request metadata (IDs, timestamps).
+- `messages: List[Message]`: Conversation message history.
+- `context: Optional[str]`: Context string from the Zowie configuration.
+- `persona: Optional[Persona]`: Chatbot persona information.
+- `llm: LLM`: LLM client with automatic context injection and event tracking.
+- `http: HTTPClient`: HTTP client with automatic event tracking.
+- `store_value: Callable[[str, Any], None]`: Function to store values in the Decision Engine.
 
 ### Response Types
 
+Your `handle` method must return one of two response types.
+
 #### ContinueConversationResponse
 
-Continue the conversation in the current process block:
+Continue the conversation in the current process block.
 
 ```python
 from zowie_agent_sdk import ContinueConversationResponse
@@ -448,191 +360,148 @@ return ContinueConversationResponse(
 
 #### TransferToBlockResponse
 
-Transfer the conversation to another process block:
+Transfer the conversation to another process block.
 
 ```python
 from zowie_agent_sdk import TransferToBlockResponse
 
 return TransferToBlockResponse(
-    message="Optional message sent before transfer",
+    message="Optional message sent before transfer.",
     next_block="target-block-reference-key"
 )
 ```
 
 ### LLM Client
 
+The `context.llm` client provides methods for interacting with language models.
+
 #### Text Generation
 
 ```python
-response = context.llm.generate_content(
+response_text = context.llm.generate_content(
     messages=context.messages,
     system_instruction="Custom system prompt",
-    include_persona=None,    # Override default persona inclusion (None = use agent default)
-    include_context=None     # Override default context inclusion (None = use agent default)
+    include_persona=True,  # Override agent default
+    include_context=True   # Override agent default
 )
-
-# Access the generated text
-generated_text = response
 ```
-
-**Parameters:**
-
-- **messages** (`List[Message]`): Conversation messages to process
-- **system_instruction** (`Optional[str]`): Custom system prompt (default: None)
-- **include_persona** (`Optional[bool]`): Override agent's default persona inclusion setting
-- **include_context** (`Optional[bool]`): Override agent's default context inclusion setting
 
 #### Structured Content Generation
 
-Generate structured responses using Pydantic models. Note that only a subset of Pydantic models are supported, and this varies by provider:
-
-- **Google Gemini**: [Supported schemas documentation](https://ai.google.dev/gemini-api/docs/structured-output#schemas-in-python)
-- **OpenAI**: [Structured outputs documentation](https://platform.openai.com/docs/guides/structured-outputs)
-
-**Simple Pydantic Model:**
-
-```python
-from pydantic import BaseModel
-from typing import List
-
-class UserIntent(BaseModel):
-    intent: str
-    confidence: float
-    entities: List[str]
-    requires_escalation: bool
-
-structured_response = context.llm.generate_structured_content(
-    messages=context.messages,
-    schema=UserIntent,
-    system_instruction="Analyze the user's intent and extract entities",
-    include_persona=None,    # Override default persona inclusion (None = use agent default)
-    include_context=None     # Override default context inclusion (None = use agent default)
-)
-
-# Access structured data
-print(f"Intent: {structured_response.intent}")
-print(f"Confidence: {structured_response.confidence}")
-```
-
-**Parameters:**
-
-- **messages** (`List[Message]`): Conversation messages to process
-- **schema** (`Type[BaseModel]`): Pydantic model class for structured output
-- **system_instruction** (`Optional[str]`): Custom system prompt (default: None)
-- **include_persona** (`Optional[bool]`): Override agent's default persona inclusion setting
-- **include_context** (`Optional[bool]`): Override agent's default context inclusion setting
-
-**Pydantic Model with Field Validation:**
+Generate structured JSON output that conforms to a Pydantic model. This is ideal for tasks like intent detection, entity extraction, or data classification.
 
 ```python
 from pydantic import BaseModel, Field
-from typing import List, Literal
+from typing import Literal
 
 class OrderAnalysis(BaseModel):
-    order_status: Literal["pending", "shipped", "delivered", "cancelled"] = Field(
-        description="Current status of the order"
-    )
-    urgency_level: int = Field(
-        ge=1, le=10, description="Urgency level from 1 (low) to 10 (critical)"
-    )
-    action_needed: bool = Field(
-        description="Whether immediate action is required"
-    )
-    customer_sentiment: Literal["positive", "neutral", "negative"] = Field(
-        description="Customer sentiment based on message tone"
-    )
+    urgency: int = Field(ge=1, le=5, description="Urgency level from 1 to 5")
+    sentiment: Literal["positive", "neutral", "negative"]
 
 analysis = context.llm.generate_structured_content(
     messages=context.messages,
     schema=OrderAnalysis,
-    system_instruction="Analyze this customer service conversation about an order"
+    system_instruction="Analyze this customer service conversation about an order."
 )
+
+print(f"Urgency: {analysis.urgency}, Sentiment: {analysis.sentiment}")
 ```
+
+**Note**: Supported Pydantic features may vary by LLM provider. Refer to the [Google Gemini](https://ai.google.dev/gemini-api/docs/structured-output#schemas-in-python) and [OpenAI](https://platform.openai.com/docs/guides/structured-outputs) documentation for details.
 
 ### HTTP Client
 
-The HTTP client provides automatic event tracking for all HTTP requests to private APIs, legacy systems, and external services. All requests are logged and made available in Supervisor for observability:
+The `context.http` client provides standard HTTP methods (`get`, `post`, `put`, etc.) with automatic event tracking for observability in Supervisor.
 
 ```python
-# GET request to document verification system
+# GET request to a document verification system
 response = context.http.get(
     url="https://internal-docs.company.com/verify/passport/ABC123",
     headers={"Authorization": f"Bearer {os.getenv('DOC_SYSTEM_TOKEN', '')}"},
     timeout_seconds=5,
-    include_headers=True
+    include_headers=False # Don't log headers for this sensitive request
 )
 
-# POST request to fraud detection service
-response = context.http.post(
+# POST request to a fraud detection service
+fraud_check = context.http.post(
     url="https://fraud-detection.internal/analyze",
-    json={"user_id": "12345", "transaction_data": {...}},
-    headers={"Content-Type": "application/json", "X-API-Key": os.getenv('FRAUD_API_KEY', '')}
+    json={"user_id": "12345", "transaction_id": "txn_abc"},
+    headers={"X-API-Key": os.getenv('FRAUD_API_KEY', '')}
 )
 
-# Other HTTP methods
-response = context.http.put(url, json=data, headers=headers)
-response = context.http.patch(url, json=data, headers=headers)
-response = context.http.delete(url, headers=headers)
-
-# Access response data
-if response.status_code == 200:
-    data = response.json()
-    print(f"Response: {data}")
+if fraud_check.status_code == 200:
+    data = fraud_check.json()
+    print(f"Fraud check result: {data}")
 ```
-
-#### HTTP Client Methods
-
-All HTTP methods support these parameters:
-
-- **url** (`str`): Target URL (required)
-- **headers** (`Dict[str, str]`): HTTP headers (required)
-- **json** (`Any`): JSON payload for POST/PUT/PATCH requests
-- **timeout_seconds** (`Optional[float]`): Request timeout override
-- **include_headers** (`Optional[bool]`): Include headers in event logs override
 
 ### Value Storage
 
-Store key-value pairs within the conversation context that can be accessed in the Decision Engine:
+Store key-value pairs within the conversation that can be used later in the Decision Engine.
 
 ```python
 def handle(self, context: Context) -> AgentResponse:
-    # Store values for the current conversation context
+    # Store a value for use in the current conversation
     context.store_value("user_preference", "email_notifications")
-    context.store_value("last_interaction", "2024-01-15T10:30:00Z")
-    context.store_value("order_history", [{"id": "123", "status": "shipped"}])
 
-    return ContinueConversationResponse(message="Preferences saved!")
+    return ContinueConversationResponse(message="Your preferences have been saved!")
 ```
+
+---
+
+## Performance and Concurrency
+
+### Synchronous by Design
+
+The SDK uses **synchronous handlers** for simplicity. You don't need to manage `async`/`await` patterns in your agent logic, which makes it easier to integrate with existing synchronous libraries and simplifies debugging.
+
+```python
+def handle(self, context: Context) -> AgentResponse:
+    # Simple, readable synchronous code
+    data = context.http.get(url, headers).json()
+    response = context.llm.generate_content(messages=context.messages)
+    return ContinueConversationResponse(message=response)
+```
+
+### Scaling with Workers
+
+The underlying FastAPI server runs synchronously in a thread pool. To handle high traffic, you should scale horizontally by increasing the number of `uvicorn` workers.
+
+- **Default Concurrency**: 40 concurrent requests (conversations) per worker.
+- **Scaling**: A 4-worker setup can handle approximately 160 concurrent conversations.
+
+<!-- end list -->
+
+```bash
+# Production with 4 workers = ~160 concurrent requests
+poetry run uvicorn example:app --workers 4 --host 0.0.0.0 --port 8000
+```
+
+Consider adding more workers if your agent performs long-running I/O operations or if you expect sustained high request volumes.
+
+---
 
 ## Event Tracking and Observability
 
-The SDK automatically tracks all HTTP requests (to private APIs, legacy systems, and external services) and LLM calls as events. These events are included in agent responses and can be viewed in Supervisor for complete observability into your agent's behavior.
+The SDK automatically tracks all `context.http` and `context.llm` calls as events. These are sent back with every agent response and are visible in **Supervisor**, giving you complete observability into your agent's interactions with external systems.
 
-### Event Types
-
-#### API Call Events
-
-All HTTP requests made through `context.http` (private APIs, legacy systems, external services) are automatically logged and available in Supervisor:
+### API Call Event Example
 
 ```json
 {
   "type": "api_call",
   "payload": {
-    "url": "https://internal-docs.company.com/verify/passport/ABC123",
-    "requestMethod": "GET",
-    "requestHeaders": { "Authorization": "Bearer ***" },
-    "requestBody": null,
+    "url": "https://fraud-detection.internal/analyze",
+    "requestMethod": "POST",
+    "requestHeaders": { "X-API-Key": "***" },
+    "requestBody": "{\"user_id\": \"12345\"}",
     "responseStatusCode": 200,
-    "responseHeaders": { "Content-Type": "application/json" },
-    "responseBody": "{\"status\": \"verified\", \"issues\": []}",
+    "responseBody": "{\"risk_score\": 0.15}",
     "durationInMillis": 245
   }
 }
 ```
 
-#### LLM Call Events
-
-All LLM interactions are automatically tracked:
+### LLM Call Event Example
 
 ```json
 {
@@ -646,249 +515,94 @@ All LLM interactions are automatically tracked:
 }
 ```
 
-### Event Configuration
-
-Control event detail level through agent configuration:
-
-```python
-agent = MyAgent(
-    llm_config=llm_config,
-    include_http_headers_by_default=False,  # Exclude headers for security
-)
-```
-
-Override per request:
-
-```python
-# Exclude headers for sensitive requests
-response = context.http.get(
-    url="https://compliance-api.internal/sensitive-check",
-    headers={"Authorization": f"Bearer {os.getenv('COMPLIANCE_TOKEN', '')}"},
-    include_headers=False  # Don't log headers for this request
-)
-```
+---
 
 ## API Endpoints
 
-Your agent exposes the following HTTP endpoints:
+Your agent server exposes the following HTTP endpoints.
 
-### POST /
+### `POST /`
 
-The main endpoint for processing requests from Zowie's Decision Engine.
+The main endpoint for processing conversation requests from the Zowie Decision Engine.
 
-**Request Format:**
+- **Request Body**: A JSON object containing `metadata`, `messages`, `context`, and optional `persona`.
+- **Response Body**: A JSON object containing the `command` to execute, `valuesToSave`, and a list of `events`.
 
-```json
-{
-  "metadata": {
-    "requestId": "unique-request-id",
-    "chatbotId": "chatbot-identifier",
-    "conversationId": "conversation-identifier",
-    "interactionId": "optional-interaction-id"
-  },
-  "messages": [
-    {
-      "author": "User",
-      "content": "What documents do I need to submit?",
-      "timestamp": "2024-01-15T10:30:00.000Z"
-    }
-  ],
-  "context": "Optional context string",
-  "persona": {
-    "name": "Document Expert",
-    "businessContext": "Document verification and compliance",
-    "toneOfVoice": "Professional and helpful"
-  }
-}
-```
+### `GET /health`
 
-**Response Format:**
+A simple health check endpoint for monitoring.
 
-```json
-{
-  "command": {
-    "type": "send_message",
-    "payload": {
-      "message": "For verification, you'll need a government-issued ID and proof of residence. Would you like specific details about acceptable document types?"
-    }
-  },
-  "valuesToSave": {
-    "interaction_type": "document_inquiry",
-    "timestamp": "2024-01-15T10:30:00Z"
-  },
-  "events": [
-    {
-      "type": "llm_call",
-      "payload": {
-        "model": "gemini-2.5-flash",
-        "prompt": "{\n  \"messages\": [...],\n  \"system_instruction\": \"...\"\n}",
-        "response": "For verification, you'll need a government-issued ID and proof of residence. Would you like specific details about acceptable document types?",
-        "durationInMillis": 1200
-      }
-    }
-  ]
-}
-```
+- **Response Body**: `{"status": "healthy", "agent": "YourAgentClassName"}`
 
-### GET /health
-
-Health check endpoint for monitoring
-
-**Response:**
-
-```json
-{
-  "status": "healthy",
-  "agent": "MyAgent",
-  "timestamp": 1705320600000
-}
-```
+---
 
 ## Request Validation
 
-The SDK automatically validates all incoming requests using Pydantic models. Invalid requests will return HTTP 422 with detailed validation errors.
+All incoming requests to the `POST /` endpoint are automatically validated against a Pydantic model. Invalid requests will receive an HTTP 422 Unprocessable Entity response with detailed validation errors. The validation is forward-compatible, meaning new fields added by Zowie in the future will be ignored and won't break your agent.
 
-### Request Validation Model
-
-```python
-from zowie_agent_sdk import IncomingRequest
-
-# The SDK validates requests against this model
-class IncomingRequest(BaseModel):
-    metadata: Metadata
-    messages: List[Message]
-    context: Optional[str] = None
-    persona: Optional[Persona] = None
-```
-
-The validation is future-compatible - unknown fields are ignored, so new API versions won't break existing agents.
+---
 
 ## Testing
 
-The SDK includes comprehensive test coverage with both mocked unit tests and optional real API integration tests.
-
-### Test Structure
-
-- **Unit/Integration Tests (27 tests)** - Fast tests using mocks, always run in CI/CD
-
-  - `test_simple_integration.py` - Basic agent functionality and workflows
-  - `test_llm_integration.py` - LLM provider integration with mocking
-  - `test_http_integration.py` - HTTP client integration with mocking
-
-- **Real E2E Tests (5 tests)** - Optional tests that call actual external APIs
-  - `test_e2e_real_apis.py` - Real API integration tests (requires API keys)
+The SDK is designed to be easily testable. The repository includes a comprehensive test suite with mocks for external services.
 
 ### Running Tests
 
-#### Run All Mocked Tests (Recommended for CI/CD)
-
 ```bash
-# Runs all tests with mocking - fast and reliable
+# Run all fast, mocked tests (recommended for CI/CD)
 poetry run pytest tests/ -k "not real" -v
-```
 
-#### Run Specific Test Categories
+# Run real E2E tests against live APIs (requires API keys)
+GOOGLE_API_KEY="..." OPENAI_API_KEY="..." poetry run pytest tests/test_e2e_real_apis.py -v
 
-```bash
-# Basic agent workflow tests
-poetry run pytest tests/test_simple_integration.py -v
-
-# LLM integration tests with mocking
-poetry run pytest tests/test_llm_integration.py -v
-
-# HTTP integration tests with mocking
-poetry run pytest tests/test_http_integration.py -v
-```
-
-#### Run Real E2E Tests (Requires API Keys)
-
-```bash
-# Tests will be skipped if no API keys are provided
-poetry run pytest tests/test_e2e_real_apis.py -v
-
-# Run with real API keys
-GOOGLE_API_KEY=your_key poetry run pytest tests/test_e2e_real_apis.py::test_real_google_gemini_integration -v
-OPENAI_API_KEY=your_key poetry run pytest tests/test_e2e_real_apis.py::test_real_openai_gpt_integration -v
-
-# Run provider comparison (requires both keys)
-GOOGLE_API_KEY=your_key OPENAI_API_KEY=your_key poetry run pytest tests/test_e2e_real_apis.py::test_real_provider_comparison -v
-```
-
-#### Run Tests with Coverage
-
-```bash
+# Run tests with coverage report
 poetry run pytest tests/ -k "not real" --cov=src/zowie_agent_sdk --cov-report=html
 ```
 
 ### Writing Tests
 
-#### Mocking LLM Providers
+Use standard mocking libraries to test your agent's logic without making real network calls. The SDK provides test utilities in `tests/utils.py` to help create test data and assert outcomes.
 
 ```python
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+from tests.utils import create_test_metadata, create_test_message
 
-@patch('zowie_agent_sdk.llm.google.GoogleProvider.generate_content')
-def test_llm_functionality(mock_generate):
-    mock_generate.return_value = "Test response"
-    # Test your agent logic here
-```
-
-#### Mocking HTTP Requests
-
-```python
+# Mocking an HTTP request
 @patch('requests.request')
-def test_http_functionality(mock_request):
-    mock_response = Mock()
-    mock_response.status_code = 200
+def test_agent_with_http_call(mock_request):
+    mock_response = Mock(status_code=200)
     mock_response.json.return_value = {"data": "test"}
     mock_request.return_value = mock_response
-    # Test HTTP client logic here
+
+    # Your agent testing logic here...
+
+# Mocking an LLM call
+@patch('zowie_agent_sdk.llm.google.GoogleProvider.generate_content')
+def test_agent_with_llm_call(mock_generate):
+    mock_generate.return_value = "Test response from LLM"
+
+    # Your agent testing logic here...
 ```
 
-#### Using Test Utilities
+---
 
-The SDK provides useful utilities in `tests/utils.py`:
+## Development Setup
 
-- `create_test_metadata()` - Create customizable Metadata objects
-- `create_test_message()` - Create customizable Message objects
-- `create_mock_http_response()` - Create mock HTTP responses
-- `assert_valid_agent_response()` - Validate response structure
-- `assert_events_recorded()` - Check events in responses
+For contributors working on the SDK itself:
 
-Example usage:
+```bash
+# Clone the repository
+git clone <repo-url>
+cd zowie-agent-sdk-python
 
-```python
-from tests.utils import create_test_metadata, create_test_message, create_mock_http_response
+# Install dependencies and set up pre-commit hooks
+make setup
 
-def test_my_agent():
-    # Create test data with custom values
-    metadata = create_test_metadata(request_id="custom-123")
-    message = create_test_message(content="Hello agent!", author="User")
-
-    # Create mock HTTP response
-    mock_response = create_mock_http_response(
-        status_code=200,
-        json_data={"result": "success"}
-    )
+# Run all quality checks (lint, format, typecheck, test)
+make check
 ```
 
-The SDK also provides test agent fixtures in `tests/conftest.py`:
-
-- `test_agent` - Simple echo test agent instance
-- `llm_test_agent` - Test agent with LLM functionality
-- `test_client` - FastAPI TestClient for the test agent
-
-### Test Coverage
-
-The test suite covers:
-
-- Agent lifecycle and request processing
-- LLM content generation (text and structured)
-- HTTP client operations with event tracking
-- Authentication mechanisms
-- Error handling and validation
-- Multi-turn conversations
-- Event tracking and observability
+---
 
 ## Support and Contributing
 
