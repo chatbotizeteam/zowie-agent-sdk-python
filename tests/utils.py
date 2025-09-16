@@ -26,11 +26,11 @@ def create_test_metadata(
 def create_test_message(
     author: Literal["User", "Chatbot"] = "User",
     content: str = "Test message",
-    timestamp: Optional[str] = None,
+    timestamp: Optional[datetime] = None,
 ) -> Message:
     """Create a test message with optional custom values."""
     if timestamp is None:
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now()
 
     return Message(author=author, content=content, timestamp=timestamp)
 

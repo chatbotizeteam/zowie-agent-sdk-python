@@ -6,6 +6,7 @@ They handle automatic camelCase serialization for JSON communication.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,7 +38,7 @@ class Message(CamelCaseModel):
 
     author: Literal["User", "Chatbot"]
     content: str
-    timestamp: str
+    timestamp: datetime
 
 
 class Persona(CamelCaseModel):

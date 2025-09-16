@@ -1,5 +1,6 @@
 """Tests for LLM integration with proper mocking."""
 
+from datetime import datetime
 from typing import Any, List
 from unittest.mock import Mock, patch
 
@@ -48,7 +49,7 @@ def test_google_llm_integration(mock_generate: Mock) -> None:
 
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Hello", timestamp="2024-01-01T00:00:00Z")]
+    messages = [Message(author="User", content="Hello", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
 
     events: List[Event] = []
     context = Context(
@@ -98,7 +99,9 @@ def test_google_structured_llm_integration(mock_generate_structured: Mock) -> No
 
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="I need help", timestamp="2024-01-01T00:00:00Z")]
+    messages = [
+        Message(author="User", content="I need help", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
 
     events: List[Event] = []
     context = Context(
@@ -138,7 +141,9 @@ def test_openai_llm_integration(mock_generate: Mock) -> None:
 
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Hello OpenAI", timestamp="2024-01-01T00:00:00Z")]
+    messages = [
+        Message(author="User", content="Hello OpenAI", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
 
     events: List[Event] = []
     context = Context(
@@ -198,7 +203,7 @@ def test_llm_error_handling() -> None:
 
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Test", timestamp="2024-01-01T00:00:00Z")]
+    messages = [Message(author="User", content="Test", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
 
     events: List[Event] = []
     context = Context(
@@ -240,7 +245,7 @@ def test_llm_with_persona_and_context(mock_generate: Mock) -> None:
     # Create context with persona
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Help me", timestamp="2024-01-01T00:00:00Z")]
+    messages = [Message(author="User", content="Help me", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
 
     persona = Persona(
         name="Assistant", business_context="Customer support", tone_of_voice="Friendly"
@@ -304,7 +309,9 @@ def test_llm_timeout_handling() -> None:
     # Create context
     metadata = Metadata(requestId="timeout-test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Test timeout", timestamp="2024-01-01T00:00:00Z")]
+    messages = [
+        Message(author="User", content="Test timeout", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+    ]
 
     events: List[Event] = []
     values_stored = {}
@@ -363,7 +370,9 @@ def test_llm_timeout_with_error() -> None:
     metadata = Metadata(requestId="timeout-error-test", chatbotId="test", conversationId="test")
 
     messages = [
-        Message(author="User", content="Test timeout error", timestamp="2024-01-01T00:00:00Z")
+        Message(
+            author="User", content="Test timeout error", timestamp=datetime(2024, 1, 1, 0, 0, 0)
+        )
     ]
 
     events: List[Event] = []
@@ -413,7 +422,7 @@ def test_llm_events_tracking(mock_generate: Mock) -> None:
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Test", timestamp="2024-01-01T00:00:00Z")]
+    messages = [Message(author="User", content="Test", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
 
     events: List[Event] = []
     context = Context(
