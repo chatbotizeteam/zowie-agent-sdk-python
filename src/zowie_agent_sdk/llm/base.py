@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from ..domain import (
     GoogleProviderConfig,
     LLMConfig,
-    LLMResponse,
     OpenAIProviderConfig,
 )
 from ..protocol import (
@@ -45,7 +44,7 @@ class BaseLLMProvider(ABC):
         persona: Optional[Persona] = None,
         context: Optional[str] = None,
         events: Optional[List[Event]] = None,
-    ) -> LLMResponse:
+    ) -> str:
         pass
 
     @abstractmethod
@@ -173,7 +172,7 @@ class LLM:
         persona: Optional[Persona] = None,
         context: Optional[str] = None,
         events: Optional[List[Event]] = None,
-    ) -> LLMResponse:
+    ) -> str:
         if self.provider is None:
             raise Exception("LLM provider not configured")
         return self.provider.generate_content(

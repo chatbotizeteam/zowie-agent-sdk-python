@@ -7,7 +7,7 @@ external API contract.
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -84,13 +84,3 @@ class BearerTokenAuth(BaseModel):
 
 
 AuthConfig = Annotated[Union[APIKeyAuth, BasicAuth, BearerTokenAuth], Field(discriminator="type")]
-
-
-# LLM interaction types
-class LLMResponse(BaseModel):
-    """Response from LLM providers."""
-
-    text: str
-    raw_response: Any
-    provider: str
-    model: str

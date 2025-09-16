@@ -16,7 +16,7 @@ class HTTPClient:
     All HTTP requests are automatically logged as APICallEvent objects for
     observability and debugging. Supports configurable timeouts and header
     inclusion controls.
-    
+
     Thread-safe: Events are passed per-request, not stored in the instance.
     """
 

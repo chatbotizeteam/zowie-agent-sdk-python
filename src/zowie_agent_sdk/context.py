@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 import requests
 from pydantic import BaseModel
 
-from .domain import LLMResponse
 from .http import HTTPClient
 from .llm import LLM
 from .protocol import Event, Message, Metadata, Persona
@@ -80,7 +79,7 @@ class ContextualLLM:
         system_instruction: Optional[str] = None,
         include_persona: Optional[bool] = None,
         include_context: Optional[bool] = None,
-    ) -> LLMResponse:
+    ) -> str:
         return self._base_llm.generate_content(
             messages=messages,
             system_instruction=system_instruction,

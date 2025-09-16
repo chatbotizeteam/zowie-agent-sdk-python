@@ -12,7 +12,6 @@ from .domain import (
     ContinueConversationResponse,
     GoogleProviderConfig,
     LLMConfig,
-    LLMResponse,
     OpenAIProviderConfig,
     TransferToBlockResponse,
 )
@@ -36,7 +35,6 @@ __all__ = (
     "GoogleProviderConfig",
     "OpenAIProviderConfig",
     "LLMConfig",
-    "LLMResponse",
     "IncomingRequest",
     "Message",
     "Metadata",

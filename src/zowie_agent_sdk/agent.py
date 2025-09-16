@@ -122,6 +122,7 @@ class Agent(ABC):
         def handle_request(
             input_json: Dict[str, Any], _: None = Depends(auth_dependency)
         ) -> ExternalAgentResponse:
+            request_id = "unknown"
             try:
                 # Validate the complete incoming request
                 request = IncomingRequest(**input_json)

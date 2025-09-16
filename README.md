@@ -71,7 +71,7 @@ source venv/bin/activate
 pip install zowie-agent-sdk
 ```
 
-### Using Poetry
+### Using Poetry (recommended)
 
 ```bash
 poetry add zowie-agent-sdk
@@ -118,7 +118,7 @@ The repository includes a complete example (`example.py`) demonstrating a **Docu
 - "Why was my passport rejected?" → Specific guidance
 - "Reset my password" → Transfer to general support
 
-Run the example: `uvicorn example:app --reload`
+Run the example: `poetry run uvicorn example:app --reload`
 
 ### Basic Agent Implementation
 
@@ -141,7 +141,7 @@ class CustomerSupportAgent(Agent):
                              "Provide accurate and friendly assistance."
         )
 
-        return ContinueConversationResponse(message=response.text)
+        return ContinueConversationResponse(message=response)
 
 # Configure the agent
 agent = CustomerSupportAgent(
@@ -160,7 +160,7 @@ app = agent.app
 Use uvicorn with reload for development:
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level info
+poetry uvicorn example:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 ```
 
 ### Running in Production
@@ -168,7 +168,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload --log-level info
 For production deployment, use multiple workers and disable reload:
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level warning
+poetry uvicorn example:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info
 ```
 
 ## Configuration
@@ -367,7 +367,7 @@ response = context.llm.generate_content(
 )
 
 # Access the generated text
-generated_text = response.text
+generated_text = response
 ```
 
 #### Structured Content Generation
@@ -640,6 +640,133 @@ class IncomingRequest(BaseModel):
 ```
 
 The validation is future-compatible - unknown fields are ignored, so new API versions won't break existing agents.
+
+## Testing
+
+The SDK includes comprehensive test coverage with both mocked unit tests and optional real API integration tests.
+
+### Test Structure
+
+- **Unit/Integration Tests (27 tests)** - Fast tests using mocks, always run in CI/CD
+
+  - `test_simple_integration.py` - Basic agent functionality and workflows
+  - `test_llm_integration.py` - LLM provider integration with mocking
+  - `test_http_integration.py` - HTTP client integration with mocking
+
+- **Real E2E Tests (5 tests)** - Optional tests that call actual external APIs
+  - `test_e2e_real_apis.py` - Real API integration tests (requires API keys)
+
+### Running Tests
+
+#### Run All Mocked Tests (Recommended for CI/CD)
+
+```bash
+# Runs all tests with mocking - fast and reliable
+poetry run pytest tests/ -k "not real" -v
+```
+
+#### Run Specific Test Categories
+
+```bash
+# Basic agent workflow tests
+poetry run pytest tests/test_simple_integration.py -v
+
+# LLM integration tests with mocking
+poetry run pytest tests/test_llm_integration.py -v
+
+# HTTP integration tests with mocking
+poetry run pytest tests/test_http_integration.py -v
+```
+
+#### Run Real E2E Tests (Requires API Keys)
+
+```bash
+# Tests will be skipped if no API keys are provided
+poetry run pytest tests/test_e2e_real_apis.py -v
+
+# Run with real API keys
+GOOGLE_API_KEY=your_key poetry run pytest tests/test_e2e_real_apis.py::test_real_google_gemini_integration -v
+OPENAI_API_KEY=your_key poetry run pytest tests/test_e2e_real_apis.py::test_real_openai_gpt_integration -v
+
+# Run provider comparison (requires both keys)
+GOOGLE_API_KEY=your_key OPENAI_API_KEY=your_key poetry run pytest tests/test_e2e_real_apis.py::test_real_provider_comparison -v
+```
+
+#### Run Tests with Coverage
+
+```bash
+poetry run pytest tests/ -k "not real" --cov=src/zowie_agent_sdk --cov-report=html
+```
+
+### Writing Tests
+
+#### Mocking LLM Providers
+
+```python
+from unittest.mock import patch
+
+@patch('zowie_agent_sdk.llm.google.GoogleProvider.generate_content')
+def test_llm_functionality(mock_generate):
+    mock_generate.return_value = "Test response"
+    # Test your agent logic here
+```
+
+#### Mocking HTTP Requests
+
+```python
+@patch('requests.request')
+def test_http_functionality(mock_request):
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"data": "test"}
+    mock_request.return_value = mock_response
+    # Test HTTP client logic here
+```
+
+#### Using Test Utilities
+
+The SDK provides useful utilities in `tests/utils.py`:
+
+- `create_test_metadata()` - Create customizable Metadata objects
+- `create_test_message()` - Create customizable Message objects
+- `create_mock_http_response()` - Create mock HTTP responses
+- `assert_valid_agent_response()` - Validate response structure
+- `assert_events_recorded()` - Check events in responses
+
+Example usage:
+
+```python
+from tests.utils import create_test_metadata, create_test_message, create_mock_http_response
+
+def test_my_agent():
+    # Create test data with custom values
+    metadata = create_test_metadata(request_id="custom-123")
+    message = create_test_message(content="Hello agent!", author="User")
+    
+    # Create mock HTTP response
+    mock_response = create_mock_http_response(
+        status_code=200,
+        json_data={"result": "success"}
+    )
+```
+
+The SDK also provides test agent fixtures in `tests/conftest.py`:
+
+- `test_agent` - Simple echo test agent instance
+- `llm_test_agent` - Test agent with LLM functionality
+- `test_client` - FastAPI TestClient for the test agent
+
+### Test Coverage
+
+The test suite covers:
+
+- Agent lifecycle and request processing
+- LLM content generation (text and structured)
+- HTTP client operations with event tracking
+- Authentication mechanisms
+- Error handling and validation
+- Multi-turn conversations
+- Event tracking and observability
 
 ## Support and Contributing
 

@@ -8,10 +8,7 @@ import openai
 from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
-from ..domain import (
-    LLMResponse,
-    OpenAIProviderConfig,
-)
+from ..domain import OpenAIProviderConfig
 from ..protocol import (
     Event,
     LLMCallEvent,
@@ -70,7 +67,7 @@ class OpenAIProvider(BaseLLMProvider):
         persona: Optional[Persona] = None,
         context: Optional[str] = None,
         events: Optional[List[Event]] = None,
-    ) -> LLMResponse:
+    ) -> str:
         openai_messages = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
             system_instruction, include_persona, include_context, persona, context
@@ -126,12 +123,7 @@ class OpenAIProvider(BaseLLMProvider):
             if choice.message and choice.message.content:
                 text = choice.message.content
 
-        return LLMResponse(
-            text=text,
-            raw_response=response,
-            provider="openai",
-            model=self.model,
-        )
+        return text
 
     def generate_structured_content(
         self,

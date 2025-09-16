@@ -23,7 +23,6 @@ from pydantic import BaseModel, Field
 from zowie_agent_sdk import (
     Agent,
     AgentResponse,
-    APIKeyAuth,
     Context,
     ContinueConversationResponse,
     GoogleProviderConfig,
@@ -116,7 +115,8 @@ class DocumentVerificationExpertAgent(Agent):
     def handle(self, context: Context) -> AgentResponse:
         """Process requests related to document verification."""
 
-        if not context.messages:
+        # Handle initial greeting when there are no previous messages
+        if len(context.messages) == 0:
             return ContinueConversationResponse(
                 message="Hello! I'm the Document Verification Expert. I can help you understand:\n"
                 "• What documents you need to submit\n"
@@ -178,7 +178,7 @@ class DocumentVerificationExpertAgent(Agent):
                 ),
             )
 
-            return ContinueConversationResponse(message=response.text)
+            return ContinueConversationResponse(message=response)
 
         except Exception as e:
             self.logger.error(f"Failed to process document query: {e}")
@@ -317,18 +317,23 @@ class DocumentVerificationExpertAgent(Agent):
             if doc.status == DocumentStatus.REJECTED
         ]
 
+        user_question = query_analysis.user_question
+        overall_status = requirements.overall_status
+        account_type = requirements.account_type
+        deadline = requirements.verification_deadline
+
         return f"""
-        You are a helpful document verification expert. The user is asking: {query_analysis.user_question}
+        You are a helpful document verification expert. The user is asking: {user_question}
         
         Current document status:
-        - Overall status: {requirements.overall_status}
-        - Account type: {requirements.account_type}
+        - Overall status: {overall_status}
+        - Account type: {account_type}
         - Missing documents: {missing or 'None'}
         - Rejected documents: {rejected or 'None'}
-        - Deadline: {requirements.verification_deadline}
+        - Deadline: {deadline}
         
         Respond naturally and conversationally. Be helpful and specific about their document 
-        requirements. If documents are missing or rejected, clearly explain what they need to do next.
+        requirements. If documents are missing or rejected, clearly explain what they need to do.
         Keep the tone professional but friendly.
         """
 

@@ -7,10 +7,7 @@ from typing import List, Optional, Type, TypeVar
 from google import genai
 from pydantic import BaseModel
 
-from ..domain import (
-    GoogleProviderConfig,
-    LLMResponse,
-)
+from ..domain import GoogleProviderConfig
 from ..protocol import (
     Event,
     LLMCallEvent,
@@ -65,7 +62,7 @@ class GoogleProvider(BaseLLMProvider):
         persona: Optional[Persona] = None,
         context: Optional[str] = None,
         events: Optional[List[Event]] = None,
-    ) -> LLMResponse:
+    ) -> str:
         prepared_contents = self._prepare_messages(messages)
         instructions_str = self._build_system_instruction(
             system_instruction, include_persona, include_context, persona, context
@@ -118,12 +115,7 @@ class GoogleProvider(BaseLLMProvider):
             )
         )
 
-        return LLMResponse(
-            text=text,
-            raw_response=response,
-            provider="google",
-            model=self.model,
-        )
+        return text
 
     def generate_structured_content(
         self,
