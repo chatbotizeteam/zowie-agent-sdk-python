@@ -44,8 +44,6 @@ The SDK is built on **FastAPI**, providing an HTTP server that integrates with Z
 ### System Architecture Diagram
 
 ```mermaid
-%%{init: {"flowchart": {"htmlLabels": false}} }%%
-
 flowchart TD
     subgraph DecisionEngine [Decision Engine]
         DE_Core[External Agent Block]
