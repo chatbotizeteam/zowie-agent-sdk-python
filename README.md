@@ -315,7 +315,7 @@ class Metadata:
 class Message:
     author: Literal["User", "Chatbot"]  # Message author
     content: str                        # Message text content
-    timestamp: str                      # ISO 8601 timestamp
+    timestamp: datetime                 # Serialized as ISO 8601 timestamp
 ```
 
 #### Persona Information
@@ -742,7 +742,7 @@ def test_my_agent():
     # Create test data with custom values
     metadata = create_test_metadata(request_id="custom-123")
     message = create_test_message(content="Hello agent!", author="User")
-    
+
     # Create mock HTTP response
     mock_response = create_mock_http_response(
         status_code=200,
