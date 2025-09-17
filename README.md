@@ -368,16 +368,6 @@ class MyAgent(Agent):
 
 ### Context Class
 
-You've made an excellent point. That is a critical piece of information for a developer using the `Context` object, and it was present in the original but lost in the rework. Defining those data structures is essential for clarity.
-
-My apologies for missing that. Let's add it back in. The best place for these definitions is directly under the `Context Class` section, as they are components of the context.
-
-Here is the updated section for the `README.md`. You can replace the entire `### Context Class` section with the following block.
-
----
-
-### Context Class
-
 The `Context` object provides access to all request data and pre-configured clients.
 
 - `metadata: Metadata`: Request metadata (IDs, timestamps).
