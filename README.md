@@ -596,14 +596,6 @@ The SDK automatically tracks all `context.http` and `context.llm` calls as event
 
 ---
 
-You've found another great point of improvement. The documentation should absolutely show examples for **all possible valid responses**, not just one. The current example only covers the `ContinueConversationResponse` and completely misses the `TransferToBlockResponse`.
-
-This is a crucial detail for anyone building an agent. I'll update the `API Endpoints` section to include examples for both response types.
-
-You can replace the entire `## API Endpoints` section in your `README.md` with this more complete version.
-
----
-
 ## API Endpoints
 
 Your agent server exposes the following HTTP endpoints.
