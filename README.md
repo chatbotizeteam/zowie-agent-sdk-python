@@ -774,8 +774,26 @@ cd zowie-agent-sdk-python
 # Install dependencies and set up pre-commit hooks
 make setup
 
-# Run all quality checks (lint, format, typecheck, test)
-make check
+# Development commands
+
+# Individual tools
+make install     # Install dependencies only
+make test        # Run tests (real API tests skipped if no keys)
+make lint        # Check code style (with auto-fix)
+make format      # Format code
+make typecheck   # Run type checking on source and tests
+
+# Individual checks (no fixes)
+make check-lint    # Check linting without fixes
+make check-format  # Check formatting without fixes
+
+# Combined commands
+make fix         # Auto-fix all formatting and linting issues
+make check       # Run ALL checks (lint, format, types, tests)
+make all         # Fix everything, then run all checks
+
+# Utility
+make clean       # Remove Python cache files
 ```
 
 ---
