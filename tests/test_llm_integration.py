@@ -1,10 +1,10 @@
 """Tests for LLM integration with proper mocking."""
 
 from datetime import datetime
-from typing import Any, List
+from typing import Any, List, Literal, Optional
 from unittest.mock import Mock, patch
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from zowie_agent_sdk import (
     Agent,
@@ -25,6 +25,44 @@ class LLMTestStructuredResponse(BaseModel):
     intent: str
     confidence: float
     needs_escalation: bool
+
+
+class BasicUserInfo(BaseModel):
+    """Basic Pydantic example with simple string fields."""
+
+    name: str
+    email: str
+    message: str
+
+
+class TechnicalDiagnostic(BaseModel):
+    """Complex technical support diagnostic example with nested structures and validation."""
+
+    class SystemInfo(BaseModel):
+        platform: Literal["windows", "macos", "linux", "ios", "android", "web"]
+        version: Optional[str] = None
+        browser: Optional[str] = None
+
+    class IssueDetails(BaseModel):
+        category: Literal[
+            "authentication", "performance", "connectivity", "data_sync", "feature_request"
+        ]
+        severity: int = Field(ge=1, le=5, description="Severity from 1=low to 5=critical")
+        reproducible: bool
+        error_codes: List[str] = Field(default_factory=list)
+
+    class SuggestedActions(BaseModel):
+        immediate_steps: List[str] = Field(description="Steps user can try immediately")
+        requires_escalation: bool
+        estimated_resolution_time: int = Field(ge=0, le=72, description="Hours to resolve")
+        internal_tools_needed: List[str] = Field(default_factory=list)
+
+    system: SystemInfo
+    issue: IssueDetails
+    user_expertise: Literal["beginner", "intermediate", "advanced", "developer"]
+    previous_tickets: int = Field(ge=0, description="Number of previous support tickets")
+    actions: SuggestedActions
+    confidence_score: float = Field(ge=0.0, le=1.0)
 
 
 @patch("zowie_agent_sdk.llm.google.GoogleProvider.generate_content")
@@ -49,7 +87,7 @@ def test_google_llm_integration(mock_generate: Mock) -> None:
 
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Hello", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [Message(author="User", content="Hello", timestamp=datetime(2025, 9, 15, 0, 0, 0))]
 
     events: List[Event] = []
     context = Context(
@@ -100,7 +138,7 @@ def test_google_structured_llm_integration(mock_generate_structured: Mock) -> No
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
     messages = [
-        Message(author="User", content="I need help", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+        Message(author="User", content="I need help", timestamp=datetime(2025, 9, 15, 0, 0, 0))
     ]
 
     events: List[Event] = []
@@ -117,6 +155,139 @@ def test_google_structured_llm_integration(mock_generate_structured: Mock) -> No
     assert isinstance(result, ContinueConversationResponse)
     assert "Intent: help_request" in result.message
     assert "confidence: 0.95" in result.message
+
+
+@patch("zowie_agent_sdk.llm.google.GoogleProvider.generate_structured_content")
+def test_basic_pydantic_example(mock_generate_structured: Mock) -> None:
+    """Test basic Pydantic example with simple string fields."""
+
+    # Mock the structured response
+    mock_generate_structured.return_value = BasicUserInfo(
+        name="John Doe", email="john@example.com", message="I need help with my account"
+    )
+
+    class BasicInfoAgent(Agent):
+        def handle(self, context: Context) -> AgentResponse:
+            user_info = context.llm.generate_structured_content(
+                messages=context.messages,
+                schema=BasicUserInfo,
+                system_instruction="Extract basic user information from the conversation.",
+            )
+
+            return ContinueConversationResponse(
+                message=f"Hello {user_info.name}! We'll help you with: {user_info.message}"
+            )
+
+    agent = BasicInfoAgent(
+        llm_config=GoogleProviderConfig(api_key="test", model="gemini-2.5-flash"), log_level="ERROR"
+    )
+
+    # Create test context
+    from zowie_agent_sdk import Metadata
+
+    metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
+    messages = [
+        Message(
+            author="User",
+            content="Hi, I'm John Doe, john@example.com. I need help with my account.",
+            timestamp=datetime(2025, 9, 15, 0, 0, 0),
+        )
+    ]
+
+    events: List[Event] = []
+    context = Context(
+        metadata=metadata,
+        messages=messages,
+        store_value=lambda k, v: None,
+        llm=agent._base_llm,
+        http=agent._base_http_client,
+        events=events,
+    )
+
+    result = agent.handle(context)
+    assert isinstance(result, ContinueConversationResponse)
+    assert "Hello John Doe!" in result.message
+    assert "I need help with my account" in result.message
+
+
+@patch("zowie_agent_sdk.llm.google.GoogleProvider.generate_structured_content")
+def test_complex_pydantic_example(mock_generate_structured: Mock) -> None:
+    """Test complex Pydantic example with nested structures and advanced validation."""
+
+    # Mock the structured response
+    mock_generate_structured.return_value = TechnicalDiagnostic(
+        system=TechnicalDiagnostic.SystemInfo(platform="windows", version="11", browser="Chrome"),
+        issue=TechnicalDiagnostic.IssueDetails(
+            category="authentication",
+            severity=3,
+            reproducible=True,
+            error_codes=["AUTH_001", "TIMEOUT_ERR"],
+        ),
+        user_expertise="intermediate",
+        previous_tickets=2,
+        actions=TechnicalDiagnostic.SuggestedActions(
+            immediate_steps=["Clear browser cache", "Try incognito mode"],
+            requires_escalation=False,
+            estimated_resolution_time=4,
+            internal_tools_needed=["user_auth_reset"],
+        ),
+        confidence_score=0.85,
+    )
+
+    class TechnicalDiagnosticAgent(Agent):
+        def handle(self, context: Context) -> AgentResponse:
+            diagnostic = context.llm.generate_structured_content(
+                messages=context.messages,
+                schema=TechnicalDiagnostic,
+                system_instruction="Analyze this technical support conversation and provide structured diagnostic information for internal systems integration.",
+            )
+
+            # Use the diagnostic data
+            if diagnostic.actions.requires_escalation:
+                escalation_msg = (
+                    f"🚨 Critical {diagnostic.issue.category} issue - escalating to engineering"
+                )
+            else:
+                escalation_msg = f"✅ {diagnostic.issue.category} issue can be resolved in {diagnostic.actions.estimated_resolution_time}h"
+
+            return ContinueConversationResponse(
+                message=f"Diagnostic: {diagnostic.issue.category} on {diagnostic.system.platform}, "
+                f"severity {diagnostic.issue.severity}/5, confidence {diagnostic.confidence_score:.2f}. "
+                f"{escalation_msg}"
+            )
+
+    agent = TechnicalDiagnosticAgent(
+        llm_config=GoogleProviderConfig(api_key="test", model="gemini-2.5-flash"), log_level="ERROR"
+    )
+
+    # Create test context
+    from zowie_agent_sdk import Metadata
+
+    metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
+    messages = [
+        Message(
+            author="User",
+            content="I can't log into my account on Windows 11 using Chrome. Getting AUTH_001 and timeout errors. I've tried this several times.",
+            timestamp=datetime(2025, 9, 15, 0, 0, 0),
+        )
+    ]
+
+    events: List[Event] = []
+    context = Context(
+        metadata=metadata,
+        messages=messages,
+        store_value=lambda k, v: None,
+        llm=agent._base_llm,
+        http=agent._base_http_client,
+        events=events,
+    )
+
+    result = agent.handle(context)
+    assert isinstance(result, ContinueConversationResponse)
+    assert "authentication on windows" in result.message
+    assert "severity 3/5" in result.message
+    assert "confidence 0.85" in result.message
+    assert "can be resolved in 4h" in result.message
 
 
 @patch("zowie_agent_sdk.llm.openai.OpenAIProvider.generate_content")
@@ -142,7 +313,7 @@ def test_openai_llm_integration(mock_generate: Mock) -> None:
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
     messages = [
-        Message(author="User", content="Hello OpenAI", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+        Message(author="User", content="Hello OpenAI", timestamp=datetime(2025, 9, 15, 0, 0, 0))
     ]
 
     events: List[Event] = []
@@ -203,7 +374,7 @@ def test_llm_error_handling() -> None:
 
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Test", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [Message(author="User", content="Test", timestamp=datetime(2025, 9, 15, 0, 0, 0))]
 
     events: List[Event] = []
     context = Context(
@@ -245,7 +416,7 @@ def test_llm_with_persona_and_context(mock_generate: Mock) -> None:
     # Create context with persona
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Help me", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [Message(author="User", content="Help me", timestamp=datetime(2025, 9, 15, 0, 0, 0))]
 
     persona = Persona(
         name="Assistant", business_context="Customer support", tone_of_voice="Friendly"
@@ -310,7 +481,7 @@ def test_llm_timeout_handling() -> None:
     metadata = Metadata(requestId="timeout-test", chatbotId="test", conversationId="test")
 
     messages = [
-        Message(author="User", content="Test timeout", timestamp=datetime(2024, 1, 1, 0, 0, 0))
+        Message(author="User", content="Test timeout", timestamp=datetime(2025, 9, 15, 0, 0, 0))
     ]
 
     events: List[Event] = []
@@ -371,7 +542,7 @@ def test_llm_timeout_with_error() -> None:
 
     messages = [
         Message(
-            author="User", content="Test timeout error", timestamp=datetime(2024, 1, 1, 0, 0, 0)
+            author="User", content="Test timeout error", timestamp=datetime(2025, 9, 15, 0, 0, 0)
         )
     ]
 
@@ -422,7 +593,7 @@ def test_llm_events_tracking(mock_generate: Mock) -> None:
     # Create context
     metadata = Metadata(requestId="test", chatbotId="test", conversationId="test")
 
-    messages = [Message(author="User", content="Test", timestamp=datetime(2024, 1, 1, 0, 0, 0))]
+    messages = [Message(author="User", content="Test", timestamp=datetime(2025, 9, 15, 0, 0, 0))]
 
     events: List[Event] = []
     context = Context(
@@ -435,7 +606,7 @@ def test_llm_events_tracking(mock_generate: Mock) -> None:
     )
 
     # Mock the events being added by the provider
-    def mock_generate_with_events(*args: Any, **kwargs: Any) -> str:
+    def mock_generate_with_events(*_args: Any, **_kwargs: Any) -> str:
         # Simulate adding an event
         events.append(
             LLMCallEvent(

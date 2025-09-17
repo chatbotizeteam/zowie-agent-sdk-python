@@ -486,6 +486,75 @@ analysis = context.llm.generate_structured_content(
 print(f"Urgency: {analysis.urgency}, Sentiment: {analysis.sentiment}")
 ```
 
+#### Basic Structured Output
+
+For simple data extraction, you can use basic Pydantic models with just string fields:
+
+```python
+from pydantic import BaseModel
+
+class UserInfo(BaseModel):
+    name: str
+    email: str
+    message: str
+
+user_info = context.llm.generate_structured_content(
+    messages=context.messages,
+    schema=UserInfo,
+    system_instruction="Extract the user's name, email, and main message from the conversation."
+)
+
+print(f"Hello {user_info.name}! We'll help you with: {user_info.message}")
+```
+
+#### Advanced Structured Output
+
+For complex business logic, you can use nested models with validation. Here's an example of a technical support diagnostic system that integrates with internal tools:
+
+```python
+from pydantic import BaseModel, Field
+from typing import List, Literal, Optional
+
+class TechnicalDiagnostic(BaseModel):
+    class SystemInfo(BaseModel):
+        platform: Literal["windows", "macos", "linux", "ios", "android", "web"]
+        version: Optional[str] = None
+        browser: Optional[str] = None
+
+    class IssueDetails(BaseModel):
+        category: Literal["authentication", "performance", "connectivity", "data_sync", "feature_request"]
+        severity: int = Field(ge=1, le=5, description="Severity from 1=low to 5=critical")
+        reproducible: bool
+        error_codes: List[str] = Field(default_factory=list)
+
+    class SuggestedActions(BaseModel):
+        immediate_steps: List[str] = Field(description="Steps user can try immediately")
+        requires_escalation: bool
+        estimated_resolution_time: int = Field(ge=0, le=72, description="Hours to resolve")
+        internal_tools_needed: List[str] = Field(default_factory=list)
+
+    system: SystemInfo
+    issue: IssueDetails
+    user_expertise: Literal["beginner", "intermediate", "advanced", "developer"]
+    previous_tickets: int = Field(ge=0, description="Number of previous support tickets")
+    actions: SuggestedActions
+    confidence_score: float = Field(ge=0.0, le=1.0)
+
+diagnostic = context.llm.generate_structured_content(
+    messages=context.messages,
+    schema=TechnicalDiagnostic,
+    system_instruction="Analyze this technical support conversation and provide structured diagnostic information for internal systems integration."
+)
+
+# Use the diagnostic data to integrate with internal systems
+if diagnostic.actions.requires_escalation:
+    # Escalate to engineering team
+    print(f"🚨 Critical {diagnostic.issue.category} issue - escalating to engineering")
+else:
+    # Provide self-service resolution
+    print(f"✅ {diagnostic.issue.category} issue can be resolved in {diagnostic.actions.estimated_resolution_time}h")
+```
+
 **Note**: Supported Pydantic features may vary by LLM provider. Refer to the [Google Gemini](https://ai.google.dev/gemini-api/docs/structured-output#schemas-in-python) and [OpenAI](https://platform.openai.com/docs/guides/structured-outputs) documentation for details.
 
 ### HTTP Client
