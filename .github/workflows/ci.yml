@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "v*"]
+    branches: ["main"]  # Only run on pushes to main (after merge)
   pull_request:
-    branches: ["main"]
+    branches: ["main"]  # Run on all PRs targeting main
 
 jobs:
   ci:
