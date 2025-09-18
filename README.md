@@ -348,6 +348,11 @@ You only need to remember this convention when comparing your Python objects to 
 
 The `Agent` class is the base for all agents. Inherit from this class and implement the `handle` method.
 
+#### Agent Properties
+
+- `logger: logging.Logger`: Logger instance for this agent, automatically configured with the agent's class name (e.g., `zowie_agent.MyAgent`).
+- `app: FastAPI`: The FastAPI application instance exposed for deployment (e.g., `uvicorn myagent:agent.app`).
+
 ```python
 from zowie_agent_sdk import Agent, Context, AgentResponse
 
@@ -363,8 +368,29 @@ class MyAgent(Agent):
             Either ContinueConversationResponse or TransferToBlockResponse.
         """
         # Your agent logic goes here
-        pass
+        response = context.llm.generate_content(
+            messages=context.messages,
+            system_instruction="You are a helpful assistant"
+        )
+
+        self.logger.info(f"Generated response: {response}")
+        return ContinueConversationResponse(message=response)
 ```
+
+#### Logging Configuration
+
+The agent automatically sets up logging with the specified log level (default: "INFO"). You can customize the log level during agent initialization:
+
+```python
+agent = MyAgent(
+    llm_config=llm_config,
+    log_level="DEBUG"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+)
+```
+
+**Note**: The SDK automatically logs request start/end and errors. Use `self.logger` for business logic events, debugging, and monitoring specific to your agent's functionality.
+
+For a complete example of effective logging usage, see the `DocumentVerificationExpertAgent` in `example.py`, which demonstrates logging for query analysis, scope decisions, and error handling.
 
 ### Context Class
 
@@ -470,6 +496,7 @@ response_text = context.llm.generate_content(
 Generate structured JSON output that conforms to a Pydantic model. This is ideal for tasks like intent detection, entity extraction, or data classification.
 
 ```python
+# Example usage within your agent's handle() method
 from pydantic import BaseModel, Field
 from typing import Literal
 
@@ -477,13 +504,25 @@ class OrderAnalysis(BaseModel):
     urgency: int = Field(ge=1, le=5, description="Urgency level from 1 to 5")
     sentiment: Literal["positive", "neutral", "negative"]
 
-analysis = context.llm.generate_structured_content(
+def handle(self, context: Context) -> AgentResponse:
+    analysis = context.llm.generate_structured_content(
     messages=context.messages,
     schema=OrderAnalysis,
     system_instruction="Analyze this customer service conversation about an order."
 )
 
-print(f"Urgency: {analysis.urgency}, Sentiment: {analysis.sentiment}")
+self.logger.info(f"Order analysis - Urgency: {analysis.urgency}, Sentiment: {analysis.sentiment}")
+
+# Use the analysis to determine response
+if analysis.urgency >= 4:
+    return TransferToBlockResponse(
+        message="This looks urgent. Let me connect you with a specialist.",
+        next_block="urgent-support"
+    )
+else:
+    return ContinueConversationResponse(
+        message=f"I understand your {analysis.sentiment} feedback about the order. How can I help?"
+    )
 ```
 
 #### Basic Structured Output
@@ -491,6 +530,7 @@ print(f"Urgency: {analysis.urgency}, Sentiment: {analysis.sentiment}")
 For simple data extraction, you can use basic Pydantic models with just string fields:
 
 ```python
+# Example usage within your agent's handle() method
 from pydantic import BaseModel
 
 class UserInfo(BaseModel):
@@ -498,13 +538,19 @@ class UserInfo(BaseModel):
     email: str
     message: str
 
-user_info = context.llm.generate_structured_content(
+def handle(self, context: Context) -> AgentResponse:
+    user_info = context.llm.generate_structured_content(
     messages=context.messages,
     schema=UserInfo,
     system_instruction="Extract the user's name, email, and main message from the conversation."
 )
 
-print(f"Hello {user_info.name}! We'll help you with: {user_info.message}")
+self.logger.info(f"Extracted user info - Name: {user_info.name}, Email: {user_info.email}")
+
+return ContinueConversationResponse(
+    message=f"Hello {user_info.name}! I see you're reaching out about: {user_info.message}. "
+            f"I'll make sure to follow up with you at {user_info.email} if needed."
+)
 ```
 
 #### Advanced Structured Output
@@ -512,6 +558,7 @@ print(f"Hello {user_info.name}! We'll help you with: {user_info.message}")
 For complex business logic, you can use nested models with validation. Here's an example of a technical support diagnostic system that integrates with internal tools:
 
 ```python
+# Example usage within your agent's handle() method
 from pydantic import BaseModel, Field
 from typing import List, Literal, Optional
 
@@ -540,19 +587,26 @@ class TechnicalDiagnostic(BaseModel):
     actions: SuggestedActions
     confidence_score: float = Field(ge=0.0, le=1.0)
 
-diagnostic = context.llm.generate_structured_content(
-    messages=context.messages,
-    schema=TechnicalDiagnostic,
-    system_instruction="Analyze this technical support conversation and provide structured diagnostic information for internal systems integration."
-)
+def handle(self, context: Context) -> AgentResponse:
+    diagnostic = context.llm.generate_structured_content(
+        messages=context.messages,
+        schema=TechnicalDiagnostic,
+        system_instruction="Analyze this technical support conversation and provide structured diagnostic information for internal systems integration."
+    )
 
-# Use the diagnostic data to integrate with internal systems
-if diagnostic.actions.requires_escalation:
-    # Escalate to engineering team
-    print(f"🚨 Critical {diagnostic.issue.category} issue - escalating to engineering")
-else:
-    # Provide self-service resolution
-    print(f"✅ {diagnostic.issue.category} issue can be resolved in {diagnostic.actions.estimated_resolution_time}h")
+    # Use the diagnostic data to integrate with internal systems
+    if diagnostic.actions.requires_escalation:
+        self.logger.info(f"Critical {diagnostic.issue.category} issue - escalating to engineering")
+        return TransferToBlockResponse(
+            message="This requires our engineering team's attention. I'm escalating this now.",
+            next_block="engineering-escalation"
+        )
+    else:
+        self.logger.info(f"{diagnostic.issue.category} issue can be resolved in {diagnostic.actions.estimated_resolution_time}h")
+        return ContinueConversationResponse(
+            message=f"I can help resolve this {diagnostic.issue.category} issue. "
+                   f"Based on my analysis, this should take about {diagnostic.actions.estimated_resolution_time} hours to fix."
+        )
 ```
 
 **Note**: Supported Pydantic features may vary by LLM provider. Refer to the [Google Gemini](https://ai.google.dev/gemini-api/docs/structured-output#schemas-in-python) and [OpenAI](https://platform.openai.com/docs/guides/structured-outputs) documentation for details.
